@@ -1,0 +1,290 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PDS Algorithmic Design &mdash; Sarracenia 3.02.00rc3 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../_static/nbsphinx-code-cells.css?v=2aa19091" />
+
+  
+    <link rel="shortcut icon" href="../../_static/sarra_horror_culture_favicon.png"/>
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=dfbb1914"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+      <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            Sarracenia
+              <img src="../../_static/sarra_horror_culture_w200.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../Explanation/Overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../Tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../How2Guides/index.html">HOWTOS</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../Explanation/index.html">Explanation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../Reference/index.html">Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api-documentation.html">API Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../fr/index.html">En français</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Sarracenia</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">PDS Algorithmic Design</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/Contribution/Philosophy/PDS_Algorithm.ipynb.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="PDS-Algorithmic-Design">
+<h1>PDS Algorithmic Design<a class="headerlink" href="#PDS-Algorithmic-Design" title="Link to this heading"></a></h1>
+<p>The PDS (Product Distribution System) is an obsolete data transfer engine gradually being replaced, but still deployed in a few Storm Prediction Centres (offices of Environment and Climate Change Canada.) other systems place files in input directories, and PDS has an array of configurations identifying which other destinations files need to be sent to.</p>
+<p>It is a sort of inspiration for Sundew. The lack of source code meant that it’s functionality was deduced and reverse engineered to to produce later products. It is a design of it’s time, the 1980’s for use on large UNIX servers.</p>
+<ul class="simple">
+<li><p>pdsReceiver, scans a directory feeds things to dispatcher.</p></li>
+<li><p>pdsDispatcher, scans sender configurations, and queues files for senders.</p></li>
+<li><p>pdsSender… does the sending.</p></li>
+</ul>
+<p>The initial deployments were on HP-UX HP-9000 UNIX servers, but it was ported to Linux in the early 2000’s, without substantial changes.</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[105]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">%</span><span class="k">matplotlib</span> inline
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">from</span> <span class="nn">matplotlib.patches</span> <span class="kn">import</span> <span class="n">Circle</span><span class="p">,</span> <span class="n">Rectangle</span><span class="p">,</span> <span class="n">Polygon</span><span class="p">,</span> <span class="n">Arrow</span><span class="p">,</span> <span class="n">FancyArrow</span>
+
+<span class="k">def</span> <span class="nf">directory_polygon</span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">box_bg</span><span class="p">,</span><span class="n">arrow1</span><span class="p">):</span>
+   <span class="k">return</span> <span class="p">[</span> <span class="n">Rectangle</span><span class="p">((</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">),</span> <span class="mf">0.8</span><span class="p">,</span> <span class="mf">1.1</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">fc</span><span class="o">=</span><span class="n">box_bg</span><span class="p">),</span>
+               <span class="n">Rectangle</span><span class="p">((</span><span class="n">x</span><span class="o">+</span><span class="mf">0.2</span><span class="p">,</span> <span class="n">y</span><span class="o">+</span><span class="mf">0.2</span><span class="p">),</span> <span class="mf">0.8</span><span class="p">,</span> <span class="mf">1.1</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">fc</span><span class="o">=</span><span class="n">box_bg</span><span class="p">),</span>
+               <span class="n">Rectangle</span><span class="p">((</span><span class="n">x</span><span class="o">+</span><span class="mf">0.4</span><span class="p">,</span> <span class="n">y</span><span class="o">+</span><span class="mf">0.4</span><span class="p">),</span> <span class="mf">0.8</span><span class="p">,</span> <span class="mf">1.1</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">fc</span><span class="o">=</span><span class="n">box_bg</span><span class="p">),</span>
+            <span class="n">FancyArrow</span><span class="p">(</span><span class="n">x</span><span class="o">+</span><span class="mf">1.4</span><span class="p">,</span><span class="n">y</span><span class="o">+</span><span class="mf">0.6</span><span class="p">,</span> <span class="mf">0.35</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">fc</span><span class="o">=</span><span class="n">arrow1</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mf">0.25</span><span class="p">,</span>
+                       <span class="n">head_width</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">head_length</span><span class="o">=</span><span class="mf">0.2</span><span class="p">),</span>
+            <span class="n">Circle</span><span class="p">((</span><span class="n">x</span><span class="o">+</span><span class="mf">2.5</span><span class="p">,</span> <span class="n">y</span><span class="o">+</span><span class="mf">0.6</span><span class="p">),</span> <span class="mf">0.5</span><span class="p">,</span> <span class="n">fc</span><span class="o">=</span><span class="n">box_bg</span><span class="p">)</span>
+          <span class="p">]</span>
+
+<span class="k">def</span> <span class="nf">create_base</span><span class="p">(</span><span class="n">box_bg</span> <span class="o">=</span> <span class="s1">&#39;#CCCCCC&#39;</span><span class="p">,</span>
+                <span class="n">arrow1</span> <span class="o">=</span> <span class="s1">&#39;#88CCFF&#39;</span><span class="p">,</span>
+                <span class="n">arrow2</span> <span class="o">=</span> <span class="s1">&#39;#88FF88&#39;</span><span class="p">,</span>
+                <span class="n">supervised</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+
+    <span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">15</span><span class="p">,</span> <span class="mi">15</span><span class="p">),</span> <span class="n">facecolor</span><span class="o">=</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
+    <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">axes</span><span class="p">((</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
+                 <span class="n">xticks</span><span class="o">=</span><span class="p">[],</span> <span class="n">yticks</span><span class="o">=</span><span class="p">[],</span> <span class="n">frameon</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">9</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">6</span><span class="p">)</span>
+
+    <span class="n">x</span><span class="o">=</span><span class="mi">0</span>
+    <span class="n">y</span><span class="o">=</span><span class="mf">3.6</span>
+    <span class="n">patches</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">patches</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">directory_polygon</span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">box_bg</span><span class="p">,</span><span class="n">arrow1</span><span class="p">))</span>
+    <span class="n">y</span><span class="o">=</span><span class="mi">0</span>
+    <span class="n">patches</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">directory_polygon</span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">box_bg</span><span class="p">,</span><span class="n">arrow1</span><span class="p">))</span>
+    <span class="n">y</span><span class="o">=</span><span class="mf">1.8</span>
+    <span class="n">patches</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">directory_polygon</span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="n">y</span><span class="p">,</span><span class="n">box_bg</span><span class="p">,</span><span class="n">arrow1</span><span class="p">))</span>
+
+    <span class="n">patches</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span> <span class="p">[</span> <span class="n">FancyArrow</span><span class="p">(</span><span class="mf">3.1</span><span class="p">,</span><span class="mf">2.4</span><span class="p">,</span><span class="mf">0.35</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">fc</span><span class="o">=</span><span class="n">arrow1</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mf">0.25</span><span class="p">,</span>
+                       <span class="n">head_width</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">head_length</span><span class="o">=</span><span class="mf">0.2</span> <span class="p">),</span>
+                      <span class="n">Circle</span><span class="p">((</span><span class="mf">4.2</span><span class="p">,</span> <span class="mf">2.4</span><span class="p">),</span> <span class="mf">0.5</span><span class="p">,</span> <span class="n">fc</span><span class="o">=</span><span class="n">box_bg</span><span class="p">),</span>
+                     <span class="n">FancyArrow</span><span class="p">(</span><span class="mf">3.0</span><span class="p">,</span><span class="mf">1.2</span><span class="p">,</span><span class="mf">0.35</span><span class="p">,</span> <span class="mf">0.4</span><span class="p">,</span> <span class="n">fc</span><span class="o">=</span><span class="n">arrow1</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mf">0.25</span><span class="p">,</span>
+                       <span class="n">head_width</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">head_length</span><span class="o">=</span><span class="mf">0.2</span> <span class="p">),</span>
+                     <span class="n">FancyArrow</span><span class="p">(</span><span class="mf">3.0</span><span class="p">,</span><span class="mf">3.8</span><span class="p">,</span><span class="mf">0.35</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.4</span><span class="p">,</span> <span class="n">fc</span><span class="o">=</span><span class="n">arrow1</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mf">0.25</span><span class="p">,</span>
+                       <span class="n">head_width</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">head_length</span><span class="o">=</span><span class="mf">0.2</span> <span class="p">),</span>
+                     <span class="n">FancyArrow</span><span class="p">(</span><span class="mf">5.1</span><span class="p">,</span><span class="mf">2.4</span><span class="p">,</span><span class="mf">0.35</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">fc</span><span class="o">=</span><span class="n">arrow1</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mf">0.25</span><span class="p">,</span>
+                       <span class="n">head_width</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">head_length</span><span class="o">=</span><span class="mf">0.2</span> <span class="p">),</span>
+                     <span class="n">FancyArrow</span><span class="p">(</span><span class="mf">5.1</span><span class="p">,</span><span class="mf">1.8</span><span class="p">,</span><span class="mf">0.35</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.4</span><span class="p">,</span> <span class="n">fc</span><span class="o">=</span><span class="n">arrow1</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mf">0.25</span><span class="p">,</span>
+                       <span class="n">head_width</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">head_length</span><span class="o">=</span><span class="mf">0.2</span> <span class="p">),</span>
+                     <span class="n">FancyArrow</span><span class="p">(</span><span class="mf">5.1</span><span class="p">,</span><span class="mf">3.1</span><span class="p">,</span><span class="mf">0.35</span><span class="p">,</span> <span class="mf">0.4</span><span class="p">,</span> <span class="n">fc</span><span class="o">=</span><span class="n">arrow1</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mf">0.25</span><span class="p">,</span>
+                       <span class="n">head_width</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">head_length</span><span class="o">=</span><span class="mf">0.2</span> <span class="p">),</span>
+                     <span class="n">Circle</span><span class="p">((</span><span class="mf">6.2</span><span class="p">,</span> <span class="mf">3.9</span><span class="p">),</span> <span class="mf">0.5</span><span class="p">,</span> <span class="n">fc</span><span class="o">=</span><span class="n">box_bg</span><span class="p">),</span>
+                     <span class="n">Circle</span><span class="p">((</span><span class="mf">6.2</span><span class="p">,</span> <span class="mf">2.4</span><span class="p">),</span> <span class="mf">0.5</span><span class="p">,</span> <span class="n">fc</span><span class="o">=</span><span class="n">box_bg</span><span class="p">),</span>
+                     <span class="n">Circle</span><span class="p">((</span><span class="mf">6.2</span><span class="p">,</span> <span class="mf">1.1</span><span class="p">),</span> <span class="mf">0.5</span><span class="p">,</span> <span class="n">fc</span><span class="o">=</span><span class="n">box_bg</span><span class="p">)</span>
+                    <span class="p">])</span>
+    <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="n">patches</span><span class="p">:</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">add_patch</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="mf">3.8</span><span class="p">,</span><span class="mf">2.35</span><span class="p">,</span> <span class="s1">&#39;Dispatcher&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">18</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="mf">2.2</span><span class="p">,</span><span class="mf">0.55</span><span class="p">,</span> <span class="s1">&#39;Receiver&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">18</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="mf">2.2</span><span class="p">,</span><span class="mf">2.35</span><span class="p">,</span> <span class="s1">&#39;Receiver&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">18</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="mf">2.2</span><span class="p">,</span><span class="mf">4.15</span><span class="p">,</span> <span class="s1">&#39;Receiver&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">18</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="mf">5.9</span><span class="p">,</span><span class="mf">1.05</span><span class="p">,</span> <span class="s1">&#39;Sender&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">18</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="mf">5.9</span><span class="p">,</span><span class="mf">2.35</span><span class="p">,</span> <span class="s1">&#39;Sender&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">18</span><span class="p">)</span>
+    <span class="n">plt</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="mf">5.9</span><span class="p">,</span><span class="mf">3.85</span><span class="p">,</span> <span class="s1">&#39;Sender&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">18</span><span class="p">)</span>
+<span class="n">create_base</span><span class="p">()</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">text</span><span class="p">(</span><span class="mf">3.0</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="s1">&#39;PDS Component Design&#39;</span><span class="p">,</span><span class="n">fontsize</span><span class="o">=</span><span class="mi">36</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<img alt="../../_images/Contribution_Philosophy_PDS_Algorithm_1_0.png" src="../../_images/Contribution_Philosophy_PDS_Algorithm_1_0.png" />
+</div>
+</div>
+<section id="Receiver">
+<h2>Receiver<a class="headerlink" href="#Receiver" title="Link to this heading"></a></h2>
+<p>Scans an input directory, uses IPC to tell the dispatcher about it. Log activities.</p>
+</section>
+<section id="Dispatcher">
+<h2>Dispatcher<a class="headerlink" href="#Dispatcher" title="Link to this heading"></a></h2>
+<p>Processes the files arriving as notified by the dispatcher using IPC.</p>
+<p>For each file:</p>
+<ul class="simple">
+<li><p>Examine the accept/reject (imask/emask) rules for each sending process. The decision to put files in a sender directory was based on evaluating sequential regular expression patterns for each sender. Assume 10 regular expressions per sender.</p></li>
+<li><p>As a single dispatcher is running, it can assign ensure file names are unique then they are placed in sender directories.</p></li>
+</ul>
+<p>place a file in the directory each sender uses. Log activities.</p>
+</section>
+<section id="Sender">
+<h2>Sender<a class="headerlink" href="#Sender" title="Link to this heading"></a></h2>
+<p>Scan the sending directory, send files, remove them. Log activities.</p>
+</section>
+<section id="Design-Decisions/Assumptions">
+<h2>Design Decisions/Assumptions<a class="headerlink" href="#Design-Decisions/Assumptions" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>Developers were asked to provide a single log for the entire system.</p></li>
+<li><p>on the order of 10 receivers.</p></li>
+<li><p>on the order of 100 senders.</p></li>
+<li><p>Assume 10 regex’s per sender.</p></li>
+<li><p>it was the eighties… so 1 or two cpus. Servers were very expensive, clustering for HA was a thing, but scaling was accomplished by bigger, more expensive servers.</p></li>
+</ul>
+</section>
+<section id="Routing-1-Product">
+<h2>Routing 1 Product<a class="headerlink" href="#Routing-1-Product" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>PDS dispatcher routing for all receivers at once.)</p></li>
+<li><p>represents a scale out vs. previous deployments.</p></li>
+<li><p>units of as the number of regular expressions evaluated. (not MIPS.)</p></li>
+</ul>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[115]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">S</span><span class="o">=</span><span class="mi">100</span>  <span class="c1"># number of senders to route to.</span>
+<span class="n">re</span><span class="o">=</span><span class="mi">100</span> <span class="c1"># number of regex&#39;s per sender to evaluate.</span>
+<span class="n">R</span><span class="o">=</span><span class="mi">10</span>   <span class="c1"># number of receivers.</span>
+<span class="n">Rp</span><span class="o">=</span><span class="n">S</span><span class="o">*</span><span class="n">re</span><span class="o">/</span><span class="mi">2</span>
+<span class="n">RE</span><span class="o">=</span><span class="mi">100</span>
+<span class="n">s</span><span class="o">=</span><span class="mi">10</span> <span class="c1"># number of senders selected by pre-routing phase.</span>
+
+<span class="nb">print</span><span class="p">(</span> <span class="sa">f</span><span class="s2">&quot;PDS pre-routing cost </span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">Rp</span><span class="p">)</span><span class="si">}</span><span class="s2"> regular exppression evaluations&quot;</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span> <span class="sa">f</span><span class="s2">&quot;Assuming an average regex costs about the same as 500 instructions&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span> <span class="sa">f</span><span class="s2">&quot;then that means the cost to route 1 product is, on average, about </span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">Rp</span><span class="o">*</span><span class="n">RE</span><span class="p">)</span><span class="si">}</span><span class="s2"> instructions.&quot;</span><span class="p">)</span>
+
+<span class="n">Rpc</span><span class="o">=</span> <span class="n">s</span><span class="o">*</span> <span class="n">RE</span><span class="o">*</span><span class="n">re</span><span class="o">/</span><span class="mi">2</span>
+
+<span class="nb">print</span><span class="p">(</span> <span class="sa">f</span><span class="s2">&quot;Then add client-side second evaluation of RE&#39;s by sender: </span><span class="si">{</span><span class="n">Rpc</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+PDS pre-routing cost 5000 regular exppression evaluations
+Assuming an average regex costs about the same as 500 instructions
+then that means the cost to route 1 product is, on average, about 500000 instructions.
+Then add client-side second evaluation of RE&#39;s by sender: 50000.0
+</pre></div></div>
+</div>
+</section>
+<section id="Observations:">
+<h2>Observations:<a class="headerlink" href="#Observations:" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>modern systems have many more cores (16 is common on single servers… ) but also clustering is common. Clustering is scaling with multiple servers, rather than more powerful individual servers.</p></li>
+<li><p>In order to ensure log entries were not corrupted by different processes writing to the log at once, a locking mechanism was used to mediate access.</p></li>
+<li><p>The dispatcher is a single process doing all of the routing.</p></li>
+</ul>
+<p>2004, there was a project to use PDS to replace the existing Tandem Apps application. It didn’t work, PDS was too slow, so that motivated some analysis of how PDS worked. The work can be used as motivation for a discussion of application design.</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[ ]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>
+</pre></div>
+</div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2022, Shared Services Canada, Government of Canada, GPLv2.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

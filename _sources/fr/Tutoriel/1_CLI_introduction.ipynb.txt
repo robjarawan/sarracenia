@@ -1,0 +1,417 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "id": "chubby-tenant",
+   "metadata": {},
+   "source": [
+    "# Téléchargement en utilisant la console\n",
+    "\n",
+    "Ce [bloc-notes jupyter](https://jupyter.org) présente l'utilisation de [Sarracenia version 3](https://metpx.github.io/sarracenia) à partir de la ligne de commande (principalement avec Linux, mais devrait être similaire avec Windows et Mac, la principale différence étant des conventions différentes pour l'emplacement de stockage des préférences et des sorties d'éxécution. C'est probablement la façon la plus simple de travailler avec Sarracenia. Vous configurez un flux pour télécharger des fichiers dans un répertoire, et vous pouvez lire le répertoire pour y traiter les fichiers."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "neither-shannon",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import sarracenia\n",
+    "!mkdir -p ~/.config/sr3/subscribe\n",
+    "!mkdir -p ~/.cache/sr3/log"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "varying-armor",
+   "metadata": {},
+   "source": [
+    "\n",
+    "## Prérequis\n",
+    "\n",
+    "Ce code qui précède n'est qu'un moyen d'obtenir des bloc-notes jupyter pour installer metpx-sr3 sur un serveur.\n",
+    "Créer des répertoires au cas où les gens utiliseraient l'accès à l'API sans exécuter les choses via l'API. Le prérequis de base est d'avoir installé metpx-sr3 d'une manière ou d'une autre, soit en tant que package .deb, soit en utilisant pip (ou pip3) disponible pour l'environnement utilisé par jupyter.\n",
+    "\n",
+    "Le reste de ce bloc-notes suppose que [metpx-sr3](https://metpx.github.io/sarracenia) est installé."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "absolute-integral",
+   "metadata": {},
+   "source": [
+    "## SR3\n",
+    "\n",
+    "L'interface de ligne de commande s'appelle [sr3](../Reference/sr3.1.html) (abréviation de Sarracenia version 3). On définit les\n",
+    "flux à exécuter à l'aide de fichiers de configuration dans un format simple : format  _keyword_ _value_  (mot clé, valeur).\n",
+    "Voici des exemples de configurations pour vous aider à démarrer:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 11,
+   "id": "drawn-opposition",
+   "metadata": {
+    "scrolled": false
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "2025-05-14 11:35:14,311 722300 [WARNING] sarracenia.config parse_line ./dual_amis.conf:20 broker needs to appear before *subtopic* unless you need different queues to have different settings\r\n",
+      "2025-05-14 11:35:14,311 722300 [INFO] sarracenia.config finalize subscribe/dual_amis.conf overriding batch for consistency with messageCountMax: 10\r\n",
+      "Sample Configurations: (from: /home/peter/.local/lib/python3.12/site-packages/sarracenia/examples )\r\n",
+      "cpump/cno_trouble_f00.inc        flow/amserver.conf               \r\n",
+      "flow/bc_trans.conf               flow/opg.conf                    \r\n",
+      "flow/poll.inc                    flow/post.inc                    \r\n",
+      "flow/report.inc                  flow/sarra.inc                   \r\n",
+      "flow/scheduled_aviation_wind_fax_charts.conf flow/sender.inc                  \r\n",
+      "flow/shovel.inc                  flow/subscribe.inc               \r\n",
+      "flow/watch.inc                   flow/winnow.inc                  \r\n",
+      "poll/airnow.conf                 poll/aws-nexrad.conf             \r\n",
+      "poll/copernicus_odata.conf       poll/mail.conf                   \r\n",
+      "poll/nasa-mls-nrt.conf           poll/nasa_cmr_opendap.conf       \r\n",
+      "poll/nasa_cmr_other.conf         poll/nasa_cmr_podaac.conf        \r\n",
+      "poll/noaa.conf                   poll/soapshc.conf                \r\n",
+      "poll/usgs.conf                   post/WMO_mesh_post.conf          \r\n",
+      "sarra/bc_trans.conf              sarra/wmo_mesh.conf              \r\n",
+      "sender/am_send.conf              sender/ec2collab.conf            \r\n",
+      "sender/pitcher_push.conf         shovel/no_trouble_f00.inc        \r\n",
+      "subscribe/aws-nexrad.conf        subscribe/dd_2mqtt.conf          \r\n",
+      "subscribe/dd_all.conf            subscribe/dd_amis.conf           \r\n",
+      "subscribe/dd_aqhi.conf           subscribe/dd_cacn_bulletins.conf \r\n",
+      "subscribe/dd_citypage.conf       subscribe/dd_cmml.conf           \r\n",
+      "subscribe/dd_gdps.conf           subscribe/dd_radar.conf          \r\n",
+      "subscribe/dd_rdps.conf           subscribe/dd_swob.conf           \r\n",
+      "subscribe/ddc_cap-xml.conf       subscribe/ddc_normal.conf        \r\n",
+      "subscribe/download_all_nasa_earthdata.conf subscribe/downloademail.conf     \r\n",
+      "subscribe/dual_amis.conf         subscribe/ec_ninjo-a.conf        \r\n",
+      "subscribe/get_copernicus.conf    subscribe/hpfxWIS2DownloadAll.conf \r\n",
+      "subscribe/hpfx_amis.conf         subscribe/hpfx_citypage.conf     \r\n",
+      "subscribe/local_sub.conf         subscribe/ping.conf              \r\n",
+      "subscribe/pitcher_pull.conf      subscribe/sci2ec.conf            \r\n",
+      "subscribe/subnoaa.conf           subscribe/subsoapshc.conf        \r\n",
+      "subscribe/subusgs.conf           watch/master.conf                \r\n",
+      "watch/pitcher_client.conf        watch/pitcher_server.conf        \r\n",
+      "watch/sci2ec.conf                \r\n"
+     ]
+    }
+   ],
+   "source": [
+    "!sr3 list examples"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "affecting-marking",
+   "metadata": {},
+   "source": [
+    "Il existe différents types de flux : les exemples sont classés selon le type de flux (poll, post, sarra, sender, shovel...)\n",
+    "Un _subscribe_ (abonnement) est utilisé par les clients pour télécharger à partir d'une pompe de données. Choisissons-en un."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 12,
+   "id": "egyptian-suicide",
+   "metadata": {
+    "scrolled": true
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "add: 2025-05-14 11:36:34,329 722470 [INFO] sarracenia.sr add copying: /home/peter/.local/lib/python3.12/site-packages/sarracenia/examples/subscribe/dual_amis.conf to /home/peter/.config/sr3/subscribe/dual_amis.conf \r\n",
+      "\r\n"
+     ]
+    }
+   ],
+   "source": [
+    "!sr3 add subscribe/dual_amis.conf"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "overall-instruction",
+   "metadata": {},
+   "source": [
+    "Les fichiers qui sont actifs pour vous sont placés dans ~/.config/sr3/<flow_type>/config_name. Vous pouvez y naviguer\n",
+    "et les modifier avec un éditeur si vous le souhaitez. Vous pouvez également le faire avec _sr3 edit subscribe/hpfx_amis.conf_\n",
+    "\n",
+    "    # this is a feed of wmo bulletin (a set called AMIS in the old times)\n",
+    "\n",
+    "    broker amqps://hpfx.collab.science.gc.ca/\n",
+    "    exchange xpublic\n",
+    "\n",
+    "    # instances: number of downloading processes to run at once.  defaults to 1. Not enough for this case\n",
+    "    instances 5\n",
+    "   \n",
+    "    # expire, in operational use, should be longer than longest expected interruption\n",
+    "    expire 10m\n",
+    "\n",
+    "    topic_prefix v02.post\n",
+    "    subtopic *.WXO-DD.bulletins.alphanumeric.#\n",
+    "    \n",
+    "    # Add a second source server for the same data. First receipt wins.\n",
+    "    broker amqps://hpfx.collab.science.gc.ca/\n",
+    "\n",
+    "    subtopic *.WXO-DD.bulletins.alphanumeric.#\n",
+    "\n",
+    "\n",
+    "    mirror false\n",
+    "    directory /tmp/amis/\n",
+    "    accept .*\n",
+    "\n",
+    "ajouté messageCountMax, donc il ne s'exécute pas éternellement."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 13,
+   "id": "primary-score",
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "!mkdir /tmp/amis\n",
+    "!echo messageCountMax 10 >>~/.config/sr3/subscribe/dual_amis.conf"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "ancient-scholarship",
+   "metadata": {},
+   "source": [
+    "Le répertoire racine où les fichiers doivent être placés doit exister avant de commencer.\n",
+    "les commandes ci-dessus sont à configurer sur une machine Linux, vous pourriez avoir besoin d'autre chose sur un Mac ou Windows.\n",
+    "\n",
+    "Vous pouvez ensuite exécuter un flux de manière interactive avec l'action _foreground_, et il se terminera rapidement, comme ceci:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 14,
+   "id": "nominated-nerve",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "2025-05-14 11:38:13,823 722767 [WARNING] sarracenia.config parse_line ./dual_amis.conf:20 broker needs to appear before *subtopic* unless you need different queues to have different settings\n",
+      "2025-05-14 11:38:13,823 722767 [ERROR] sarracenia.config.subscription write failed: /home/peter/.cache/sr3/subscribe/dual_amis/subscriptions.json: [Errno 2] No such file or directory: '/home/peter/.cache/sr3/subscribe/dual_amis/subscriptions.json'\n",
+      "2025-05-14 11:38:13,824 722767 [INFO] sarracenia.config finalize subscribe/dual_amis.conf overriding batch for consistency with messageCountMax: 10\n",
+      ".2025-05-14 11:38:14,132 [WARNING] 722772 sarracenia.config parse_line ./dual_amis.conf:20 broker needs to appear before *subtopic* unless you need different queues to have different settings\n",
+      "2025-05-14 11:38:14,134 [INFO] 722772 sarracenia.config finalize subscribe/dual_amis overriding batch for consistency with messageCountMax: 10\n",
+      "2025-05-14 11:38:14,147 [WARNING] 722772 sarracenia.config parse_line ./dual_amis.conf:20 broker needs to appear before *subtopic* unless you need different queues to have different settings\n",
+      "2025-05-14 11:38:14,148 [INFO] 722772 sarracenia.config finalize subscribe/dual_amis overriding batch for consistency with messageCountMax: 10\n",
+      "2025-05-14 11:38:14,385 [INFO] 722772 sarracenia.moth.amqp _queueDeclare queue declared q_anonymous.subscribe.dual_amis.peter_localhost_35680053 (as: amqps://anonymous@dd.weather.gc.ca/), (messages waiting: 0)\n",
+      "2025-05-14 11:38:14,385 [INFO] 722772 sarracenia.moth.amqp getSetup binding q_anonymous.subscribe.dual_amis.peter_localhost_35680053 with v02.post.*.WXO-DD.bulletins.alphanumeric.# to xpublic (as: amqps://anonymous@dd.weather.gc.ca/)\n",
+      "2025-05-14 11:38:14,657 [INFO] 722772 sarracenia.moth.amqp _queueDeclare queue declared q_anonymous.subscribe.dual_amis.peter_localhost_13205651 (as: amqps://anonymous@hpfx.collab.science.gc.ca/), (messages waiting: 0)\n",
+      "2025-05-14 11:38:14,657 [INFO] 722772 sarracenia.moth.amqp getSetup binding q_anonymous.subscribe.dual_amis.peter_localhost_13205651 with v02.post.*.WXO-DD.bulletins.alphanumeric.# to xpublic (as: amqps://anonymous@hpfx.collab.science.gc.ca/)\n",
+      "2025-05-14 11:38:17,088 [INFO] 722772 sarracenia.flowcb.log after_accept accepted: (lag: 4.17 )  exchange: xpublic subtopic: 20250514.WXO-DD.bulletins.alphanumeric.20250514.UA.CWAO.15 a file with baseUrl: https://hpfx.collab.science.gc.ca relPath: /20250514/WXO-DD/bulletins/alphanumeric/20250514/UA/CWAO/15/UANT01_CWAO_141538___29702 sundew_extension: fromPxatx:CWAO:UA:3:Direct:20250514153810 id: pU9VKG0 size: 123 \n",
+      "2025-05-14 11:38:17,088 [INFO] 722772 sarracenia.flowcb.log after_accept accepted: (lag: 4.16 )  exchange: xpublic subtopic: 20250514.WXO-DD.bulletins.alphanumeric.20250514.UA.CWAO.15 a file with baseUrl: https://hpfx.collab.science.gc.ca relPath: /20250514/WXO-DD/bulletins/alphanumeric/20250514/UA/CWAO/15/UANT01_CWAO_141538___55404 sundew_extension: fromPxatx:CWAO:UA:3:Direct:20250514153810 id: LYqpY44 size: 123 \n",
+      "2025-05-14 11:38:17,088 [INFO] 722772 sarracenia.flowcb.log after_accept accepted: (lag: 8.18 )  exchange: xpublic subtopic: 20250514.WXO-DD.bulletins.alphanumeric.20250514.UA.CWAO.15 a file with baseUrl: https://hpfx.collab.science.gc.ca relPath: /20250514/WXO-DD/bulletins/alphanumeric/20250514/UA/CWAO/15/UANT01_CWAO_141538___42536 sundew_extension: fromPxatx:CWAO:UA:3:Direct:20250514153806 id: 9Z9KunG size: 117 \n",
+      "2025-05-14 11:38:17,088 [INFO] 722772 sarracenia.flowcb.log after_accept accepted: (lag: 4.17 )  exchange: xpublic subtopic: 20250514.WXO-DD.bulletins.alphanumeric.20250514.SX.KWAL.15 a file with baseUrl: https://hpfx.collab.science.gc.ca relPath: /20250514/WXO-DD/bulletins/alphanumeric/20250514/SX/KWAL/15/SXCN40_KWAL_141537___8427 sundew_extension: cvt_nws_bulletins-sr:KWAL:SX:3:Direct:20250514153810 id: 3h4uCpX size: 279 \n",
+      "2025-05-14 11:38:17,088 [INFO] 722772 sarracenia.flowcb.log after_accept accepted: (lag: 4.17 )  exchange: xpublic subtopic: 20250514.WXO-DD.bulletins.alphanumeric.20250514.SR.KWAL.15 a file with baseUrl: https://hpfx.collab.science.gc.ca relPath: /20250514/WXO-DD/bulletins/alphanumeric/20250514/SR/KWAL/15/SRMN70_KWAL_141537___48982 sundew_extension: cvt_nws_bulletins-sr:KWAL:SR:3:Direct:20250514153810 id: 2Af8aei size: 151 \n",
+      "2025-05-14 11:38:17,088 [INFO] 722772 sarracenia.flowcb.log after_accept accepted: (lag: 4.17 )  exchange: xpublic subtopic: 20250514.WXO-DD.bulletins.alphanumeric.20250514.SX.KWAL.15 a file with baseUrl: https://hpfx.collab.science.gc.ca relPath: /20250514/WXO-DD/bulletins/alphanumeric/20250514/SX/KWAL/15/SXCN40_KWAL_141537___30745 sundew_extension: cvt_nws_bulletins-sr:KWAL:SX:3:Direct:20250514153810 id: ihHAGPg size: 318 \n",
+      "2025-05-14 11:38:17,088 [INFO] 722772 sarracenia.flowcb.log after_accept accepted: (lag: 4.17 )  exchange: xpublic subtopic: 20250514.WXO-DD.bulletins.alphanumeric.20250514.SA.KWBC.15 a file with baseUrl: https://hpfx.collab.science.gc.ca relPath: /20250514/WXO-DD/bulletins/alphanumeric/20250514/SA/KWBC/15/SAUS21_KWBC_141538___54424 sundew_extension: cvt_nws_bulletins-sr:KWBC:SA:3:Direct:20250514153810 id: z34WuXP size: 275 \n",
+      "2025-05-14 11:38:17,088 [INFO] 722772 sarracenia.flowcb.log after_accept accepted: (lag: 4.17 )  exchange: xpublic subtopic: 20250514.WXO-DD.bulletins.alphanumeric.20250514.SP.KWBC.15 a file with baseUrl: https://hpfx.collab.science.gc.ca relPath: /20250514/WXO-DD/bulletins/alphanumeric/20250514/SP/KWBC/15/SPUS70_KWBC_141538___32199 sundew_extension: cvt_nws_bulletins-sr:KWBC:SP:3:Direct:20250514153810 id: sSMURLc size: 793 \n",
+      "2025-05-14 11:38:17,088 [INFO] 722772 sarracenia.flowcb.log after_accept accepted: (lag: 4.16 )  exchange: xpublic subtopic: 20250514.WXO-DD.bulletins.alphanumeric.20250514.SA.KWBC.15 a file with baseUrl: https://hpfx.collab.science.gc.ca relPath: /20250514/WXO-DD/bulletins/alphanumeric/20250514/SA/KWBC/15/SAUS70_KWBC_141538___28078 sundew_extension: cvt_nws_bulletins-sr:KWBC:SA:3:Direct:20250514153810 id: ifFpQlL size: 3547 \n",
+      "2025-05-14 11:38:18,159 [INFO] 722772 sarracenia.flowcb.log after_work downloaded ok: /tmp/hpfx_amis/UANT01_CWAO_141538___29702 \n",
+      "2025-05-14 11:38:18,159 [INFO] 722772 sarracenia.flowcb.log after_work downloaded ok: /tmp/hpfx_amis/UANT01_CWAO_141538___55404 \n",
+      "2025-05-14 11:38:18,159 [INFO] 722772 sarracenia.flowcb.log after_work downloaded ok: /tmp/hpfx_amis/UANT01_CWAO_141538___42536 \n",
+      "2025-05-14 11:38:18,159 [INFO] 722772 sarracenia.flowcb.log after_work downloaded ok: /tmp/hpfx_amis/SXCN40_KWAL_141537___8427 \n",
+      "2025-05-14 11:38:18,159 [INFO] 722772 sarracenia.flowcb.log after_work downloaded ok: /tmp/hpfx_amis/SRMN70_KWAL_141537___48982 \n",
+      "2025-05-14 11:38:18,159 [INFO] 722772 sarracenia.flowcb.log after_work downloaded ok: /tmp/hpfx_amis/SXCN40_KWAL_141537___30745 \n",
+      "2025-05-14 11:38:18,159 [INFO] 722772 sarracenia.flowcb.log after_work downloaded ok: /tmp/hpfx_amis/SAUS21_KWBC_141538___54424 \n",
+      "2025-05-14 11:38:18,159 [INFO] 722772 sarracenia.flowcb.log after_work downloaded ok: /tmp/hpfx_amis/SPUS70_KWBC_141538___32199 \n",
+      "2025-05-14 11:38:18,159 [INFO] 722772 sarracenia.flowcb.log after_work downloaded ok: /tmp/hpfx_amis/SAUS70_KWBC_141538___28078 \n",
+      "2025-05-14 11:38:18,354 [INFO] 722772 sarracenia.flowcb.log after_accept accepted: (lag: 5.43 )  exchange: xpublic subtopic: 20250514.WXO-DD.bulletins.alphanumeric.20250514.UA.CWAO.15 a file with baseUrl: https://dd1.weather.gc.ca/ relPath: 20250514/WXO-DD/bulletins/alphanumeric/20250514/UA/CWAO/15/UANT01_CWAO_141538___29702 sundew_extension: fromPxatx:CWAO:UA:3:Direct:20250514153810 id: pU9VKG0 size: 123 \n",
+      "2025-05-14 11:38:18,354 [INFO] 722772 sarracenia.flowcb.log after_accept accepted: (lag: 5.43 )  exchange: xpublic subtopic: 20250514.WXO-DD.bulletins.alphanumeric.20250514.UA.CWAO.15 a file with baseUrl: https://dd1.weather.gc.ca/ relPath: 20250514/WXO-DD/bulletins/alphanumeric/20250514/UA/CWAO/15/UANT01_CWAO_141538___55404 sundew_extension: fromPxatx:CWAO:UA:3:Direct:20250514153810 id: LYqpY44 size: 123 \n",
+      "2025-05-14 11:38:18,354 [INFO] 722772 sarracenia.flowcb.log after_accept accepted: (lag: 5.43 )  exchange: xpublic subtopic: 20250514.WXO-DD.bulletins.alphanumeric.20250514.SP.KWBC.15 a file with baseUrl: https://dd2.weather.gc.ca/ relPath: 20250514/WXO-DD/bulletins/alphanumeric/20250514/SP/KWBC/15/SPUS70_KWBC_141538___32199 sundew_extension: cvt_nws_bulletins-sr:KWBC:SP:3:Direct:20250514153810 id: sSMURLc size: 793 \n",
+      "2025-05-14 11:38:18,354 [INFO] 722772 sarracenia.flowcb.log after_accept accepted: (lag: 5.43 )  exchange: xpublic subtopic: 20250514.WXO-DD.bulletins.alphanumeric.20250514.SA.KWBC.15 a file with baseUrl: https://dd2.weather.gc.ca/ relPath: 20250514/WXO-DD/bulletins/alphanumeric/20250514/SA/KWBC/15/SAUS70_KWBC_141538___28078 sundew_extension: cvt_nws_bulletins-sr:KWBC:SA:3:Direct:20250514153810 id: ifFpQlL size: 3547 \n",
+      "2025-05-14 11:38:18,354 [INFO] 722772 sarracenia.flowcb.log after_accept accepted: (lag: 5.44 )  exchange: xpublic subtopic: 20250514.WXO-DD.bulletins.alphanumeric.20250514.SX.KWAL.15 a file with baseUrl: https://dd2.weather.gc.ca/ relPath: 20250514/WXO-DD/bulletins/alphanumeric/20250514/SX/KWAL/15/SXCN40_KWAL_141537___8427 sundew_extension: cvt_nws_bulletins-sr:KWAL:SX:3:Direct:20250514153810 id: 3h4uCpX size: 279 \n",
+      "2025-05-14 11:38:18,354 [INFO] 722772 sarracenia.flowcb.log after_accept accepted: (lag: 9.44 )  exchange: xpublic subtopic: 20250514.WXO-DD.bulletins.alphanumeric.20250514.UA.CWAO.15 a file with baseUrl: https://dd2.weather.gc.ca/ relPath: 20250514/WXO-DD/bulletins/alphanumeric/20250514/UA/CWAO/15/UANT01_CWAO_141538___42536 sundew_extension: fromPxatx:CWAO:UA:3:Direct:20250514153806 id: 9Z9KunG size: 117 \n",
+      "2025-05-14 11:38:18,354 [INFO] 722772 sarracenia.flowcb.log after_accept accepted: (lag: 5.44 )  exchange: xpublic subtopic: 20250514.WXO-DD.bulletins.alphanumeric.20250514.SR.KWAL.15 a file with baseUrl: https://dd2.weather.gc.ca/ relPath: 20250514/WXO-DD/bulletins/alphanumeric/20250514/SR/KWAL/15/SRMN70_KWAL_141537___48982 sundew_extension: cvt_nws_bulletins-sr:KWAL:SR:3:Direct:20250514153810 id: 2Af8aei size: 151 \n",
+      "2025-05-14 11:38:18,354 [INFO] 722772 sarracenia.flowcb.log after_accept accepted: (lag: 5.43 )  exchange: xpublic subtopic: 20250514.WXO-DD.bulletins.alphanumeric.20250514.SA.KWBC.15 a file with baseUrl: https://dd2.weather.gc.ca/ relPath: 20250514/WXO-DD/bulletins/alphanumeric/20250514/SA/KWBC/15/SAUS21_KWBC_141538___54424 sundew_extension: cvt_nws_bulletins-sr:KWBC:SA:3:Direct:20250514153810 id: z34WuXP size: 275 \n",
+      "2025-05-14 11:38:18,355 [INFO] 722772 sarracenia.flowcb.log after_work rejected: 406 mtime not newer /tmp/hpfx_amis/UANT01_CWAO_141538___29702  \n",
+      "2025-05-14 11:38:18,355 [INFO] 722772 sarracenia.flowcb.log after_work rejected: 406 mtime not newer /tmp/hpfx_amis/UANT01_CWAO_141538___55404  \n",
+      "2025-05-14 11:38:18,355 [INFO] 722772 sarracenia.flowcb.log after_work rejected: 406 mtime not newer /tmp/hpfx_amis/SPUS70_KWBC_141538___32199  \n",
+      "2025-05-14 11:38:18,355 [INFO] 722772 sarracenia.flowcb.log after_work rejected: 406 mtime not newer /tmp/hpfx_amis/SAUS70_KWBC_141538___28078  \n",
+      "2025-05-14 11:38:18,355 [INFO] 722772 sarracenia.flowcb.log after_work rejected: 406 mtime not newer /tmp/hpfx_amis/SXCN40_KWAL_141537___8427  \n",
+      "2025-05-14 11:38:18,355 [INFO] 722772 sarracenia.flowcb.log after_work rejected: 406 mtime not newer /tmp/hpfx_amis/UANT01_CWAO_141538___42536  \n",
+      "2025-05-14 11:38:18,355 [INFO] 722772 sarracenia.flowcb.log after_work rejected: 406 mtime not newer /tmp/hpfx_amis/SRMN70_KWAL_141537___48982  \n",
+      "2025-05-14 11:38:18,355 [INFO] 722772 sarracenia.flowcb.log after_work rejected: 406 mtime not newer /tmp/hpfx_amis/SAUS21_KWBC_141538___54424  \n",
+      "2025-05-14 11:38:18,355 [INFO] 722772 sarracenia.flow run 18 messages processed > messageCountMax 10\n",
+      "2025-05-14 11:38:18,355 [INFO] 722772 sarracenia.flow please_stop asked to stop\n",
+      "2025-05-14 11:38:18,355 [INFO] 722772 sarracenia.moth please_stop asked to stop\n",
+      "2025-05-14 11:38:18,355 [INFO] 722772 sarracenia.moth please_stop asked to stop\n",
+      "2025-05-14 11:38:18,355 [INFO] 722772 sarracenia.flow _runHousekeeping on_housekeeping pid: 722772 subscribe/dual_amis instance: 0\n",
+      "2025-05-14 11:38:18,355 [INFO] 722772 sarracenia.flowcb.gather.message on_housekeeping from amqps://anonymous@dd.weather.gc.ca/ messages: good: 8 bad: 0 bytes: 1.0KiB average: 130Bytes\n",
+      "2025-05-14 11:38:18,356 [INFO] 722772 sarracenia.flowcb.gather.message on_housekeeping from amqps://anonymous@hpfx.collab.science.gc.ca/ messages: good: 9 bad: 0 bytes: 1.2KiB average: 138Bytes\n",
+      "2025-05-14 11:38:18,356 [INFO] 722772 sarracenia.flowcb.housekeeping.resources on_housekeeping Current cpu_times: user=0.36 system=0.05\n",
+      "2025-05-14 11:38:18,356 [INFO] 722772 sarracenia.flowcb.housekeeping.resources on_housekeeping Current mem usage: 111.7MiB, accumulating count (9 or 17/100 so far) before self-setting threshold\n",
+      "2025-05-14 11:38:18,356 [INFO] 722772 sarracenia.flowcb.log stats version: 3.00.59rc1, started: 4 seconds ago, last_housekeeping:  4.2 seconds ago \n",
+      "2025-05-14 11:38:18,356 [INFO] 722772 sarracenia.flowcb.log stats messages received: 25, accepted: 17, rejected: 8   rate accepted: 68.0% or 4.0 m/s\n",
+      "2025-05-14 11:38:18,356 [INFO] 722772 sarracenia.flowcb.log stats files transferred: 9 bytes: 5.6KiB rate: 1.3KiB/sec\n",
+      "2025-05-14 11:38:18,356 [INFO] 722772 sarracenia.flowcb.log stats lag: average: 5.23, maximum: 9.44 \n",
+      "2025-05-14 11:38:18,356 [INFO] 722772 sarracenia.flow run 18 messages processed > messageCountMax 10\n",
+      "2025-05-14 11:38:18,356 [INFO] 722772 sarracenia.flow please_stop asked to stop\n",
+      "2025-05-14 11:38:18,356 [INFO] 722772 sarracenia.moth please_stop asked to stop\n",
+      "2025-05-14 11:38:18,356 [INFO] 722772 sarracenia.moth please_stop asked to stop\n",
+      "2025-05-14 11:38:18,356 [INFO] 722772 sarracenia.flow _runHousekeeping on_housekeeping pid: 722772 subscribe/dual_amis instance: 0\n",
+      "2025-05-14 11:38:18,356 [INFO] 722772 sarracenia.flowcb.gather.message on_housekeeping from amqps://anonymous@dd.weather.gc.ca/ messages: good: 0 bad: 0 bytes: 0Bytes average: 0Bytes\n",
+      "2025-05-14 11:38:18,356 [INFO] 722772 sarracenia.flowcb.gather.message on_housekeeping from amqps://anonymous@hpfx.collab.science.gc.ca/ messages: good: 0 bad: 0 bytes: 0Bytes average: 0Bytes\n",
+      "2025-05-14 11:38:18,357 [INFO] 722772 sarracenia.flowcb.housekeeping.resources on_housekeeping Current cpu_times: user=0.36 system=0.05\n",
+      "2025-05-14 11:38:18,357 [INFO] 722772 sarracenia.flowcb.housekeeping.resources on_housekeeping Current mem usage: 111.7MiB, accumulating count (9 or 17/100 so far) before self-setting threshold\n",
+      "2025-05-14 11:38:18,357 [INFO] 722772 sarracenia.flowcb.log stats version: 3.00.59rc1, started: 4 seconds ago, last_housekeeping:  0.0 seconds ago \n",
+      "2025-05-14 11:38:18,357 [INFO] 722772 sarracenia.flowcb.log stats messages received: 0, accepted: 0, rejected: 0   rate accepted: 0.0% or 0.0 m/s\n",
+      "2025-05-14 11:38:18,357 [INFO] 722772 sarracenia.flowcb.log stats files transferred: 0 bytes: 0Bytes rate: 0Bytes/sec\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "2025-05-14 11:38:18,400 [INFO] 722772 sarracenia.flow close flow/close completed cleanly pid: 722772 subscribe/dual_amis instance: 0\n",
+      "\n"
+     ]
+    }
+   ],
+   "source": [
+    "!sr3 foreground subscribe/dual_amis.conf"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "foreign-european",
+   "metadata": {},
+   "source": [
+    "comme vous pouvez le voir, il a téléchargé cinq fichiers dans /tmp/amis.\n",
+    "L'action _foreground_ est destinée à aider au débogage, plutôt qu'aux opérations réelles."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 15,
+   "id": "split-writing",
+   "metadata": {
+    "scrolled": false
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "2025-05-14 11:38:24,089 722789 [WARNING] sarracenia.config parse_line ./dual_amis.conf:20 broker needs to appear before *subtopic* unless you need different queues to have different settings\r\n",
+      "2025-05-14 11:38:24,089 722789 [INFO] sarracenia.config finalize subscribe/dual_amis.conf overriding batch for consistency with messageCountMax: 10\r\n",
+      "status: \r\n",
+      "Component/Config     Processes                                         Rates\r\n",
+      "                     State   Run Retry  Que     Lag  Last    %rej  messages      Data \r\n",
+      "                     -----   --- -----  ---     ---  ----    ----  --------      ---- \r\n",
+      "subscribe/dual_amis  stop    0/0    0    0    0.00s   n/a    0.0%     0m/s       0B/s \r\n",
+      "      Total Running Configs:   0 ( Processes: 0 missing: 0 stray: 0 )\r\n",
+      "                     Memory: uss:0Bytes rss:0Bytes vms:0Bytes \r\n",
+      "                   CPU Time: User:0.00s System:0.00s \r\n",
+      "\t   Pub/Sub Received: 0m/s (0B/s), Sent:  0m/s (0B/s) Queued: 0 Retry: 0, Mean lag: 0.00s\r\n",
+      "\t      Data Received: 0f/s (0B/s), Sent: 0f/s (0B/s) \r\n"
+     ]
+    }
+   ],
+   "source": [
+    "!sr3 status"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "rocky-unemployment",
+   "metadata": {},
+   "source": [
+    "Il y a 1 configuration dans votre liste. Vous pouvez en avoir des centaines. Les colonnes de droite indiquent le nombre d'instances dont vous disposez pour chaque configuration. Dans l'exemple ci-dessus, _instances_ est défini sur 5, donc on s'attendrait à voir 5 instances en cours d'exécution lors de l'exécution. Vous pouvez démarrer une configuration spécifique avec _sr3 start subscribe/*_ ou démarrer toutes les instances actives avec : _sr3 start_"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 16,
+   "id": "neural-laugh",
+   "metadata": {
+    "scrolled": true
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "2025-05-14 11:38:30,694 722805 [WARNING] sarracenia.config parse_line ./dual_amis.conf:20 broker needs to appear before *subtopic* unless you need different queues to have different settings\r\n",
+      "2025-05-14 11:38:30,695 722805 [INFO] sarracenia.config finalize subscribe/dual_amis.conf overriding batch for consistency with messageCountMax: 10\r\n",
+      "tail: cannot open '/home/peter/.cache/sr3/log/subscribe_dual_amis_01.log' for reading: No such file or directory\r\n",
+      "tail: no files remaining\r\n",
+      "2025-05-14 11:38:30,698 722805 [CRITICAL] root run_command subprocess.run failed err=Command '['tail', '-f', '/home/peter/.cache/sr3/log/subscribe_dual_amis_01.log']' returned non-zero exit status 1.\r\n",
+      "\r\n"
+     ]
+    }
+   ],
+   "source": [
+    "!sr3 log subscribe/dual_amis.conf"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "leading-matthew",
+   "metadata": {},
+   "source": [
+    "Lors de l'exécution en arrière-plan, la sortie doit aller dans un fichier journal (sortie d'exécution). Comme nous n'avons exécuté ce fichier de configuration qu'au premier plan, demander à voir le journal imprime une erreur indiquant que le journal est manquant. Cela vous indique que les journaux se trouvent dans le répertoire _~/.cache/sr3/log_. Les journaux peuvent être surveillés en temps réel avec des outils traditionnels tels que _tail -f_ ou _grep_.\n",
+    "\n",
+    "_sr3 stop_ fait ce que vous pensez.\n",
+    "\n",
+    "Les processus peuvent planter. Dans la sortie _sr3 status_ ci-dessus, si le nombre de processus dans la colonne Run est inférieur à celui dans la colonne Exp (for Expected), cela signifie que certaines instances ont planté. Vous pouvez le réparer (démarrez simplement les instances manquantes) avec :\n",
+    "\n",
+    "_sr3 sanity_ - démarre les instances manquantes, tue également les parasites s'il en trouve.\n",
+    "\n",
+    "Voilà, une introduction à l'exécution des configurations dans Sarracenia à partir de la ligne de commande.\n",
+    "\n",
+    "\n",
+    "## Conclusion\n",
+    "\n",
+    "Si tout ce que vous voulez faire est d'obtenir des données à partir d'une pompe de données en temps réel, utiliser l'interface de ligne de commande pour contrôler certains processus qui s'exécutent tout le temps, afin qu'ils vident les fichiers dans un certain répertoire est la méthode la plus simple.\n",
+    "\n",
+    "Ce n'est pas très efficace cependant. Lorsque vous avez un grand nombre de fichiers sur lesquels travailler et que vous souhaitez un traitement à grande vitesse, il est préférable, dans le sens d'une charge CPU et d'E/S (I/O) réduite et en termes de vitesse de traitement\n",
+    "d'avoir votre propre application informée de l'arrivée des fichiers, plutôt que de scanner un répertoire.\n",
+    "\n",
+    "La façon la plus simple de le faire est d'ajouter des rappels à vos flux. Nous couvrirons cela ensuite."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "artistic-purple",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3 (ipykernel)",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.12.3"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}

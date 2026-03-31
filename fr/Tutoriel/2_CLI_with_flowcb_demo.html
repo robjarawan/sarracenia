@@ -1,0 +1,636 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Personnalisez la gestion des fichiers avec les rappels. &mdash; Sarracenia 3.02.00rc3 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../../_static/nbsphinx-code-cells.css?v=2aa19091" />
+
+  
+    <link rel="shortcut icon" href="../../_static/sarra_horror_culture_favicon.png"/>
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=dfbb1914"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+      <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="Exemple d’API de flux" href="3_api_flow_demo.html" />
+    <link rel="prev" title="Téléchargement en utilisant la console" href="1_CLI_introduction.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            Sarracenia
+              <img src="../../_static/sarra_horror_culture_w200.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../Explanation/Overview.html">Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../Tutorials/index.html">Tutorials</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../How2Guides/index.html">HOWTOS</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../Explanation/index.html">Explanation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../Reference/index.html">Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../Contribution/index.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api-documentation.html">API Documentation</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../index.html">En français</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="../Reference/index.html">Référence</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../Explication/index.html">Explication</a></li>
+<li class="toctree-l2 current"><a class="reference internal" href="index.html">Tutoriel</a><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="1_CLI_introduction.html">Téléchargement en utilisant la console</a></li>
+<li class="toctree-l3 current"><a class="current reference internal" href="#">Personnalisez la gestion des fichiers avec les rappels.</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#Entrées-de-fichier-de-configuration-et-rappels">Entrées de fichier de configuration et rappels</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#Écrire-Vos-Propres-Rappels">Écrire Vos Propres Rappels</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#Listes-De-Travail">Listes De Travail</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#Sortie-d'Exécution">Sortie d’Exécution</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#Exemple-de-sous-classe-Flowcb">Exemple de sous-classe Flowcb</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#Plugins-qui-changent-la-façon-dont-un-fichier-est-téléchargé">Plugins qui changent la façon dont un fichier est téléchargé</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#Plugins-qui-Traitent-un-Fichier-après-son-Téléchargement">Plugins qui Traitent un Fichier après son Téléchargement</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#Plugins-qui-renomment-les-fichiers">Plugins qui renomment les fichiers</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#Plugins-qui-Créent-de-Nouveaux-Fichiers">Plugins qui Créent de Nouveaux Fichiers</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#Other-Examples">Other Examples</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="3_api_flow_demo.html">Exemple d’API de flux</a></li>
+<li class="toctree-l3"><a class="reference internal" href="4_api_moth_sub_demo.html">Un premier exemple utilisant l’API Sarracenia Moth</a></li>
+<li class="toctree-l3"><a class="reference internal" href="5_api_moth_post_demo.html">Publication à partir du code Python</a></li>
+<li class="toctree-l3"><a class="reference internal" href="Installer.html">Installation de MetPX Sarracenia</a></li>
+<li class="toctree-l3"><a class="reference internal" href="Mettre_en_place_un_subscriber_distant.html">Comment configurer un abonné distant</a></li>
+<li class="toctree-l3"><a class="reference internal" href="Mettre_en_place_un_subscriber_local.html">Administrateur du serveur : un abonné local</a></li>
+<li class="toctree-l3"><a class="reference internal" href="Migrer_v2_vers_sr3.html">Migrer de Sarracenia v2 à sr3</a></li>
+<li class="toctree-l3"><a class="reference internal" href="Windows.html">Manuel de l’utilisateur Windows</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../CommentFaire/index.html">Comment Faire</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../Contribution/index.html">Contribuer à Sarracenia</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Sarracenia</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">S´abonner et répliquer</a></li>
+          <li class="breadcrumb-item"><a href="index.html">Tutoriel</a></li>
+      <li class="breadcrumb-item active">Personnalisez la gestion des fichiers avec les rappels.</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/fr/Tutoriel/2_CLI_with_flowcb_demo.ipynb.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="Personnalisez-la-gestion-des-fichiers-avec-les-rappels.">
+<h1>Personnalisez la gestion des fichiers avec les rappels.<a class="headerlink" href="#Personnalisez-la-gestion-des-fichiers-avec-les-rappels." title="Link to this heading"></a></h1>
+<p>Tous les composants de Sarracenia implémentent <em>l’algorithme Flow</em>, avec différents rappels, dans le langage de programmation Python. La classe principale de Sarracenia (Python) est <a class="reference external" href="../Reference/code.html#module-sarracenia.flow">sarracenia.flow</a> et la grande partie de la fonctionnalité de base est mis en œuvre à l’aide de la classe créée pour ajouter un traitement personnalisé à un flux, le classe flowcb (rappel de flux).</p>
+<p>Pour une discussion détaillée de l’algorithme de flux lui-même, jetez un oeil dans le manuel <a class="reference external" href="../Explanation/Concepts.html">Concepts</a>. Pour tout flux, on peut ajouter un traitement personnalisé à divers moments pendant le traitement par sous-classement la classe <a class="reference external" href="../Reference/flowcb.html">sarracenia.flowcb</a>.</p>
+<p>En bref, l’algorithme comporte les étapes suivantes :</p>
+<ul class="simple">
+<li><p><strong>init(self, options)</strong> – lors de l’import, initialisation de python traditionnelle</p></li>
+<li><p><strong>on_start</strong> – lorsqu’une instance est démarrée.</p></li>
+<li><p>boucle pour toujours</p>
+<ul>
+<li><p><strong>gather</strong> – collecte les messages à traiter appelés : worklist.incoming</p></li>
+<li><p><strong>poll</strong> – une autre façon de collecter des messages, uniquement dans le composant poll.</p></li>
+<li><p><strong>filter</strong> – applique les correspondances d’expressions régulières acceptées/rejetées à la liste de messages. déplace les messages pour les fichiers à ne pas télécharger de worklist.incoming vers worklist.reject</p>
+<ul>
+<li><p><em>after_accept</em> point d’entrée de rappel. traiter worklist.incoming, en en rejetant potentiellement d’autres.</p></li>
+</ul>
+</li>
+<li><p><strong>ack</strong> – les messages worklist.rejected sont reconnus à la source en amont lorsque le traitement est terminé.</p></li>
+<li><p><strong>work</strong> – effectue un transfert ou une transformation sur un fichier.</p></li>
+<li><p><strong>ack</strong> – les messages worklist.ok pour les fichiers transférés avec succès sont reconnus à la source en amont.</p>
+<ul>
+<li><p>Point d’entrée du rappel <em>after_work</em></p></li>
+</ul>
+</li>
+<li><p><strong>ack</strong> – les messages worklist.failed pour les fichiers qui n’ont pas été transférés avec succès sont reconnus.</p></li>
+<li><p><strong>post</strong> – publier le résultat du travail effectué pour l’étape suivante.</p></li>
+<li><p>occasionnellement… **on_housekeeping – faire des nettoyages périodiques…</p></li>
+</ul>
+</li>
+<li><p><strong>on_stop</strong> – arrêt du traitement.</p></li>
+</ul>
+<p>pour plus de détails sur les points d’entrée disponibles de flowcb, consultez le code source:</p>
+<ul class="simple">
+<li><p><a class="reference external" href="../Reference/flowcb.html">flowcb</a></p></li>
+</ul>
+<p>Regardons l’utilisation de la classe dans une configuration :</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[1]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">!</span>sr3<span class="w"> </span>remove<span class="w"> </span>subscribe/dual_amis.conf
+<span class="o">!</span>sr3<span class="w"> </span>add<span class="w"> </span>subscribe/dual_amis.conf
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+2025-05-14 11:39:55,907 723077 [WARNING] sarracenia.config parse_line ./dual_amis.conf:20 broker needs to appear before *subtopic* unless you need different queues to have different settings
+2025-05-14 11:39:55,908 723077 [INFO] sarracenia.config finalize subscribe/dual_amis.conf overriding batch for consistency with messageCountMax: 10
+deleting: subscribe/dual_amis is: q_anonymous.subscribe.dual_amis.peter_localhost_35680053 @ hpfx.collab.science.gc.ca
+2025-05-14 11:39:56,207 723077 [INFO] sarracenia.moth.amqp _queueDeclare queue declared q_anonymous.subscribe.dual_amis.peter_localhost_35680053 (as: amqps://anonymous@dd.weather.gc.ca/), (messages waiting: 220)
+2025-05-14 11:39:56,207 723077 [INFO] sarracenia.moth.amqp getSetup binding q_anonymous.subscribe.dual_amis.peter_localhost_35680053 with v02.post.*.WXO-DD.bulletins.alphanumeric.# to xpublic (as: amqps://anonymous@dd.weather.gc.ca/)
+2025-05-14 11:39:56,250 723077 [INFO] sarracenia.moth.amqp getCleanUp deleting queue q_anonymous.subscribe.dual_amis.peter_localhost_35680053
+deleting: subscribe/dual_amis is: q_anonymous.subscribe.dual_amis.peter_localhost_13957889 @ hpfx.collab.science.gc.ca
+2025-05-14 11:39:56,748 723077 [INFO] sarracenia.moth.amqp _queueDeclare queue declared q_anonymous.subscribe.dual_amis.peter_localhost_13957889 (as: amqps://anonymous@hpfx.collab.science.gc.ca/), (messages waiting: 0)
+2025-05-14 11:39:56,749 723077 [INFO] sarracenia.moth.amqp getSetup binding q_anonymous.subscribe.dual_amis.peter_localhost_13957889 with v02.post.*.WXO-DD.bulletins.alphanumeric.# to xpublic (as: amqps://anonymous@hpfx.collab.science.gc.ca/)
+2025-05-14 11:39:56,774 723077 [INFO] sarracenia.moth.amqp getCleanUp deleting queue q_anonymous.subscribe.dual_amis.peter_localhost_13957889
+2025-05-14 11:39:56,846 723077 [INFO] sarracenia.flowcb.log on_cleanup hello
+removing state file: /home/peter/.cache/sr3/subscribe/dual_amis/subscriptions.json
+removing state file: /home/peter/.cache/sr3/subscribe/dual_amis/subscribe.dual_amis.anonymous.qname
+2025-05-14 11:39:56,846 723077 [INFO] root remove removing subscribe/dual_amis
+
+add: 2025-05-14 11:39:57,719 723082 [INFO] sarracenia.sr add copying: /home/peter/.local/lib/python3.12/site-packages/sarracenia/examples/subscribe/dual_amis.conf to /home/peter/.config/sr3/subscribe/dual_amis.conf
+
+</pre></div></div>
+</div>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[2]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">!</span><span class="nb">echo</span><span class="w"> </span>messageCountMax<span class="w"> </span><span class="m">10</span><span class="w"> </span>&gt;&gt;~/.config/sr3/subscribe/dual_amis.conf
+</pre></div>
+</div>
+</div>
+<p>fait en sorte que le flux s’arrête après la consommation de 10 messages.</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[3]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">!</span>sr3<span class="w"> </span>list<span class="w"> </span>fcb
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+2025-05-14 11:40:04,357 723101 [WARNING] sarracenia.config parse_line ./dual_amis.conf:20 broker needs to appear before *subtopic* unless you need different queues to have different settings
+2025-05-14 11:40:04,357 723101 [INFO] sarracenia.config finalize subscribe/dual_amis.conf overriding batch for consistency with messageCountMax: 10
+Provided callback classes: ( /home/peter/.local/lib/python3.12/site-packages/sarracenia )
+flowcb/accept/bc_trans.py        flowcb/accept/dateappend.py
+flowcb/accept/delete.py          flowcb/accept/distbydir.py
+flowcb/accept/downloadbaseurl.py flowcb/accept/hourtree.py
+flowcb/accept/httptohttps.py     flowcb/accept/longflow.py
+flowcb/accept/pathreplace.py     flowcb/accept/posthourtree.py
+flowcb/accept/postoverride.py    flowcb/accept/printlag.py
+flowcb/accept/rename4jicc.py     flowcb/accept/renamedmf.py
+flowcb/accept/renamewhatfn.py    flowcb/accept/save.py
+flowcb/accept/sftp_absolute.py   flowcb/accept/speedo.py
+flowcb/accept/sundewpxroute.py   flowcb/accept/testretry.py
+flowcb/accept/toclusters.py      flowcb/accept/tolocalfile.py
+flowcb/accept/trim_legacy_fields.py flowcb/accept/wmotypesuffix.py
+flowcb/authenticate/bc_trans.py  flowcb/authenticate/copernicus.py
+flowcb/authenticate/eumetsat.py  flowcb/authenticate/nasa_earthdata.py
+flowcb/block_reassembly.py       flowcb/clamav.py
+flowcb/destfn/replace.py         flowcb/destfn/sample.py
+flowcb/download/mail_ingest.py   flowcb/filter/content_type.py
+flowcb/filter/deleteflowfiles.py flowcb/filter/fdelay.py
+flowcb/filter/geometry.py        flowcb/filter/pclean_f90.py
+flowcb/filter/pclean_f92.py      flowcb/filter/wmo00_accumulate.py
+flowcb/filter/wmo00_split.py     flowcb/filter/wmo2msc.py
+flowcb/gather/am.py              flowcb/gather/file.py
+flowcb/gather/message.py         flowcb/housekeeping/resources.py
+flowcb/log.py                    flowcb/mdelaylatest.py
+flowcb/nodupe/data_only.py       flowcb/nodupe/disk.py
+flowcb/nodupe/name.py            flowcb/nodupe/name_only.py
+flowcb/nodupe/path_only.py       flowcb/nodupe/redis.py
+flowcb/pclean.py                 flowcb/poll/airnow.py
+flowcb/poll/copernicus_marine_s3.py flowcb/poll/eumetsat.py
+flowcb/poll/mail.py              flowcb/poll/nasa_cmr.py
+flowcb/poll/nasa_mls_nrt.py      flowcb/poll/nexrad.py
+flowcb/poll/noaa_hydrometric.py  flowcb/poll/odata.py
+flowcb/poll/rate_limit.py        flowcb/poll/s3bucket.py
+flowcb/poll/usgs.py              flowcb/post/message.py
+flowcb/rename/raw2bulletin.py    flowcb/report.py
+flowcb/retry.py                  flowcb/rootchown.py
+flowcb/run.py                    flowcb/rxqueue_gzip.py
+flowcb/sample.py                 flowcb/scheduled/http_with_metadata.py
+flowcb/scheduled/poll.py         flowcb/scheduled/wiski.py
+flowcb/send/am.py                flowcb/send/email.py
+flowcb/send/s3CloudSender.py     flowcb/shiftdir2baseurl.py
+flowcb/trace_on_stop.py          flowcb/v2wrapper.py
+flowcb/wistree.py                flowcb/work/age.py
+flowcb/work/check.py             flowcb/work/citypage_check.py
+flowcb/work/delete.py            flowcb/work/rxpipe.py
+flowcb/work/send_egc_les.py
+</pre></div></div>
+</div>
+<p>L’ajout de cette ligne à la configuration signifie que la sous-classe wistree flowcb (source ci-dessus) sera ajoutée au flux et modifier le traitement en faisant appeler ses routines… la principale étant <em>after_accept</em></p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[4]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">!</span><span class="nb">echo</span><span class="w"> </span>callback<span class="w"> </span>accept.posthourtree<span class="w">  </span>&gt;&gt;~/.config/sr3/subscribe/dual_amis.conf
+</pre></div>
+</div>
+</div>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[5]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">!</span>sr3<span class="w"> </span>foreground<span class="w"> </span>subscribe/dual_amis.conf
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area docutils container">
+<div class="highlight"><pre>
+2025-05-14 11:40:22,199 723166 [WARNING] sarracenia.config parse_line ./dual_amis.conf:20 broker needs to appear before *subtopic* unless you need different queues to have different settings
+2025-05-14 11:40:22,200 723166 [ERROR] sarracenia.config.subscription write failed: /home/peter/.cache/sr3/subscribe/dual_amis/subscriptions.json: [Errno 2] No such file or directory: &#39;/home/peter/.cache/sr3/subscribe/dual_amis/subscriptions.json&#39;
+2025-05-14 11:40:22,200 723166 [INFO] sarracenia.config finalize subscribe/dual_amis.conf overriding batch for consistency with messageCountMax: 10
+.2025-05-14 11:40:22,511 [WARNING] 723173 sarracenia.config parse_line ./dual_amis.conf:20 broker needs to appear before *subtopic* unless you need different queues to have different settings
+2025-05-14 11:40:22,514 [INFO] 723173 sarracenia.config finalize subscribe/dual_amis overriding batch for consistency with messageCountMax: 10
+2025-05-14 11:40:22,524 [WARNING] 723173 sarracenia.config parse_line ./dual_amis.conf:20 broker needs to appear before *subtopic* unless you need different queues to have different settings
+2025-05-14 11:40:22,525 [INFO] 723173 sarracenia.config finalize subscribe/dual_amis overriding batch for consistency with messageCountMax: 10
+2025-05-14 11:40:22,730 [INFO] 723173 sarracenia.moth.amqp _queueDeclare queue declared q_anonymous.subscribe.dual_amis.peter_localhost_74427311 (as: amqps://anonymous@dd.weather.gc.ca/), (messages waiting: 0)
+2025-05-14 11:40:22,731 [INFO] 723173 sarracenia.moth.amqp getSetup binding q_anonymous.subscribe.dual_amis.peter_localhost_74427311 with v02.post.*.WXO-DD.bulletins.alphanumeric.# to xpublic (as: amqps://anonymous@dd.weather.gc.ca/)
+2025-05-14 11:40:23,005 [INFO] 723173 sarracenia.moth.amqp _queueDeclare queue declared q_anonymous.subscribe.dual_amis.peter_localhost_04428400 (as: amqps://anonymous@hpfx.collab.science.gc.ca/), (messages waiting: 0)
+2025-05-14 11:40:23,005 [INFO] 723173 sarracenia.moth.amqp getSetup binding q_anonymous.subscribe.dual_amis.peter_localhost_04428400 with v02.post.*.WXO-DD.bulletins.alphanumeric.# to xpublic (as: amqps://anonymous@hpfx.collab.science.gc.ca/)
+2025-05-14 11:40:25,158 [INFO] 723173 sarracenia.flowcb.accept.posthourtree after_accept post_hour_tree: new_dir: /tmp/hpfx_amis/15
+2025-05-14 11:40:25,158 [INFO] 723173 sarracenia.flowcb.log after_accept accepted: (lag: 1.75 )  exchange: xpublic subtopic: 20250514.WXO-DD.bulletins.alphanumeric.20250514.UA.CWAO.15 a file with baseUrl: https://hpfx.collab.science.gc.ca relPath: /20250514/WXO-DD/bulletins/alphanumeric/20250514/UA/CWAO/15/UANT01_CWAO_141540___06690 sundew_extension: fromPxatx:CWAO:UA:3:Direct:20250514154021 id: sknXmLi size: 125
+2025-05-14 11:40:25,270 [INFO] 723173 sarracenia.flowcb.log after_work downloaded ok: /tmp/hpfx_amis/15/UANT01_CWAO_141540___06690
+2025-05-14 11:40:27,414 [INFO] 723173 sarracenia.flowcb.accept.posthourtree after_accept post_hour_tree: new_dir: /tmp/hpfx_amis/15
+2025-05-14 11:40:27,414 [INFO] 723173 sarracenia.flowcb.log after_accept accepted: (lag: 4.01 )  exchange: xpublic subtopic: 20250514.WXO-DD.bulletins.alphanumeric.20250514.UA.CWAO.15 a file with baseUrl: https://dd1.weather.gc.ca/ relPath: 20250514/WXO-DD/bulletins/alphanumeric/20250514/UA/CWAO/15/UANT01_CWAO_141540___06690 sundew_extension: fromPxatx:CWAO:UA:3:Direct:20250514154021 id: sknXmLi size: 125
+2025-05-14 11:40:27,414 [INFO] 723173 sarracenia.flowcb.log after_work rejected: 406 mtime not newer /tmp/hpfx_amis/15/UANT01_CWAO_141540___06690
+2025-05-14 11:40:27,673 [INFO] 723173 sarracenia.flowcb.accept.posthourtree after_accept post_hour_tree: new_dir: /tmp/hpfx_amis/15
+2025-05-14 11:40:27,673 [INFO] 723173 sarracenia.flowcb.log after_accept accepted: (lag: 1.26 )  exchange: xpublic subtopic: 20250514.WXO-DD.bulletins.alphanumeric.20250514.UA.CWAO.15 a file with baseUrl: https://hpfx.collab.science.gc.ca relPath: /20250514/WXO-DD/bulletins/alphanumeric/20250514/UA/CWAO/15/UANT01_CWAO_141540___55375 sundew_extension: fromPxatx:CWAO:UA:3:Direct:20250514154024 id: mSSkJ6u size: 118
+2025-05-14 11:40:27,758 [INFO] 723173 sarracenia.flowcb.log after_work downloaded ok: /tmp/hpfx_amis/15/UANT01_CWAO_141540___55375
+2025-05-14 11:40:28,262 [INFO] 723173 sarracenia.flowcb.accept.posthourtree after_accept post_hour_tree: new_dir: /tmp/hpfx_amis/15
+2025-05-14 11:40:28,263 [INFO] 723173 sarracenia.flowcb.log after_accept accepted: (lag: 1.85 )  exchange: xpublic subtopic: 20250514.WXO-DD.bulletins.alphanumeric.20250514.UA.CWAO.15 a file with baseUrl: https://dd1.weather.gc.ca/ relPath: 20250514/WXO-DD/bulletins/alphanumeric/20250514/UA/CWAO/15/UANT01_CWAO_141540___55375 sundew_extension: fromPxatx:CWAO:UA:3:Direct:20250514154024 id: mSSkJ6u size: 118
+2025-05-14 11:40:28,263 [INFO] 723173 sarracenia.flowcb.log after_work rejected: 406 mtime not newer /tmp/hpfx_amis/15/UANT01_CWAO_141540___55375
+2025-05-14 11:40:28,783 [INFO] 723173 sarracenia.flowcb.accept.posthourtree after_accept post_hour_tree: new_dir: /tmp/hpfx_amis/15
+2025-05-14 11:40:28,783 [INFO] 723173 sarracenia.flowcb.log after_accept accepted: (lag: 1.64 )  exchange: xpublic subtopic: 20250514.WXO-DD.bulletins.alphanumeric.20250514.SP.CYHM.15 a file with baseUrl: https://hpfx.collab.science.gc.ca relPath: /20250514/WXO-DD/bulletins/alphanumeric/20250514/SP/CYHM/15/SPCN62_CYHM_141539___28694414 sundew_extension: navcan-odex:CYHM:SP:3:Direct:20250514154025 id: bxkZHUT size: 123
+2025-05-14 11:40:28,867 [INFO] 723173 sarracenia.flowcb.log after_work downloaded ok: /tmp/hpfx_amis/15/SPCN62_CYHM_141539___28694414
+2025-05-14 11:40:31,034 [INFO] 723173 sarracenia.flowcb.accept.posthourtree after_accept post_hour_tree: new_dir: /tmp/hpfx_amis/15
+2025-05-14 11:40:31,034 [INFO] 723173 sarracenia.flowcb.accept.posthourtree after_accept post_hour_tree: new_dir: /tmp/hpfx_amis/15
+2025-05-14 11:40:31,034 [INFO] 723173 sarracenia.flowcb.log after_accept accepted: (lag: 1.36 )  exchange: xpublic subtopic: 20250514.WXO-DD.bulletins.alphanumeric.20250514.UA.CWAO.15 a file with baseUrl: https://dd2.weather.gc.ca/ relPath: 20250514/WXO-DD/bulletins/alphanumeric/20250514/UA/CWAO/15/UANT01_CWAO_141540___30969 sundew_extension: fromPxatx:CWAO:UA:3:Direct:20250514154028 id: QfaRaEK size: 123
+2025-05-14 11:40:31,034 [INFO] 723173 sarracenia.flowcb.log after_accept accepted: (lag: 1.36 )  exchange: xpublic subtopic: 20250514.WXO-DD.bulletins.alphanumeric.20250514.UA.CWAO.15 a file with baseUrl: https://hpfx.collab.science.gc.ca relPath: /20250514/WXO-DD/bulletins/alphanumeric/20250514/UA/CWAO/15/UANT01_CWAO_141540___30969 sundew_extension: fromPxatx:CWAO:UA:3:Direct:20250514154028 id: QfaRaEK size: 123
+2025-05-14 11:40:31,110 [INFO] 723173 sarracenia.flowcb.log after_work rejected: 406 mtime not newer /tmp/hpfx_amis/15/UANT01_CWAO_141540___30969
+2025-05-14 11:40:31,111 [INFO] 723173 sarracenia.flowcb.log after_work downloaded ok: /tmp/hpfx_amis/15/UANT01_CWAO_141540___30969
+2025-05-14 11:40:31,379 [INFO] 723173 sarracenia.flowcb.accept.posthourtree after_accept post_hour_tree: new_dir: /tmp/hpfx_amis/15
+2025-05-14 11:40:31,379 [INFO] 723173 sarracenia.flowcb.log after_accept accepted: (lag: 4.23 )  exchange: xpublic subtopic: 20250514.WXO-DD.bulletins.alphanumeric.20250514.SP.CYHM.15 a file with baseUrl: https://dd2.weather.gc.ca/ relPath: 20250514/WXO-DD/bulletins/alphanumeric/20250514/SP/CYHM/15/SPCN62_CYHM_141539___28694414 sundew_extension: navcan-odex:CYHM:SP:3:Direct:20250514154025 id: bxkZHUT size: 123
+2025-05-14 11:40:31,379 [INFO] 723173 sarracenia.flowcb.log after_work rejected: 406 mtime not newer /tmp/hpfx_amis/15/SPCN62_CYHM_141539___28694414
+2025-05-14 11:40:40,283 [INFO] 723173 sarracenia.flowcb.accept.posthourtree after_accept post_hour_tree: new_dir: /tmp/hpfx_amis/15
+2025-05-14 11:40:40,283 [INFO] 723173 sarracenia.flowcb.accept.posthourtree after_accept post_hour_tree: new_dir: /tmp/hpfx_amis/15
+2025-05-14 11:40:40,283 [INFO] 723173 sarracenia.flowcb.accept.posthourtree after_accept post_hour_tree: new_dir: /tmp/hpfx_amis/15
+2025-05-14 11:40:40,283 [INFO] 723173 sarracenia.flowcb.accept.posthourtree after_accept post_hour_tree: new_dir: /tmp/hpfx_amis/15
+2025-05-14 11:40:40,283 [INFO] 723173 sarracenia.flowcb.accept.posthourtree after_accept post_hour_tree: new_dir: /tmp/hpfx_amis/15
+2025-05-14 11:40:40,283 [INFO] 723173 sarracenia.flowcb.log after_accept accepted: (lag: 6.60 )  exchange: xpublic subtopic: 20250514.WXO-DD.bulletins.alphanumeric.20250514.UA.CWAO.15 a file with baseUrl: https://dd2.weather.gc.ca/ relPath: 20250514/WXO-DD/bulletins/alphanumeric/20250514/UA/CWAO/15/UANT01_CWAO_141540___19775 sundew_extension: fromPxatx:CWAO:UA:3:Direct:20250514154032 id: YzP11Id size: 122
+2025-05-14 11:40:40,283 [INFO] 723173 sarracenia.flowcb.log after_accept accepted: (lag: 6.60 )  exchange: xpublic subtopic: 20250514.WXO-DD.bulletins.alphanumeric.20250514.UA.CWAO.15 a file with baseUrl: https://dd2.weather.gc.ca/ relPath: 20250514/WXO-DD/bulletins/alphanumeric/20250514/UA/CWAO/15/UANT01_CWAO_141540___31795 sundew_extension: fromPxatx:CWAO:UA:3:Direct:20250514154032 id: FzjF6ST size: 117
+2025-05-14 11:40:40,283 [INFO] 723173 sarracenia.flowcb.log after_accept accepted: (lag: 6.60 )  exchange: xpublic subtopic: 20250514.WXO-DD.bulletins.alphanumeric.20250514.UA.CWAO.15 a file with baseUrl: https://hpfx.collab.science.gc.ca relPath: /20250514/WXO-DD/bulletins/alphanumeric/20250514/UA/CWAO/15/UANT01_CWAO_141540___19775 sundew_extension: fromPxatx:CWAO:UA:3:Direct:20250514154032 id: YzP11Id size: 122
+2025-05-14 11:40:40,283 [INFO] 723173 sarracenia.flowcb.log after_accept accepted: (lag: 6.60 )  exchange: xpublic subtopic: 20250514.WXO-DD.bulletins.alphanumeric.20250514.UA.CWAO.15 a file with baseUrl: https://hpfx.collab.science.gc.ca relPath: /20250514/WXO-DD/bulletins/alphanumeric/20250514/UA/CWAO/15/UANT01_CWAO_141540___31795 sundew_extension: fromPxatx:CWAO:UA:3:Direct:20250514154032 id: FzjF6ST size: 117
+2025-05-14 11:40:40,283 [INFO] 723173 sarracenia.flowcb.log after_accept accepted: (lag: 4.12 )  exchange: xpublic subtopic: 20250514.WXO-DD.bulletins.alphanumeric.20250514.UA.CWAO.15 a file with baseUrl: https://hpfx.collab.science.gc.ca relPath: /20250514/WXO-DD/bulletins/alphanumeric/20250514/UA/CWAO/15/UANT01_CWAO_141540___07853 sundew_extension: fromPxatx:CWAO:UA:3:Direct:20250514154034 id: 2/ZaXnC size: 123
+2025-05-14 11:40:40,510 [INFO] 723173 sarracenia.flowcb.log after_work rejected: 406 mtime not newer /tmp/hpfx_amis/15/UANT01_CWAO_141540___19775
+2025-05-14 11:40:40,510 [INFO] 723173 sarracenia.flowcb.log after_work rejected: 406 mtime not newer /tmp/hpfx_amis/15/UANT01_CWAO_141540___31795
+2025-05-14 11:40:40,510 [INFO] 723173 sarracenia.flowcb.log after_work downloaded ok: /tmp/hpfx_amis/15/UANT01_CWAO_141540___19775
+2025-05-14 11:40:40,510 [INFO] 723173 sarracenia.flowcb.log after_work downloaded ok: /tmp/hpfx_amis/15/UANT01_CWAO_141540___31795
+2025-05-14 11:40:40,510 [INFO] 723173 sarracenia.flowcb.log after_work downloaded ok: /tmp/hpfx_amis/15/UANT01_CWAO_141540___07853
+2025-05-14 11:40:40,511 [INFO] 723173 sarracenia.flow run 14 messages processed &gt; messageCountMax 10
+2025-05-14 11:40:40,511 [INFO] 723173 sarracenia.flow please_stop asked to stop
+2025-05-14 11:40:40,511 [INFO] 723173 sarracenia.moth please_stop asked to stop
+2025-05-14 11:40:40,511 [INFO] 723173 sarracenia.moth please_stop asked to stop
+2025-05-14 11:40:40,511 [INFO] 723173 sarracenia.flow _runHousekeeping on_housekeeping pid: 723173 subscribe/dual_amis instance: 0
+2025-05-14 11:40:40,511 [INFO] 723173 sarracenia.flowcb.gather.message on_housekeeping from amqps://anonymous@dd.weather.gc.ca/ messages: good: 6 bad: 0 bytes: 789Bytes average: 131Bytes
+2025-05-14 11:40:40,511 [INFO] 723173 sarracenia.flowcb.gather.message on_housekeeping from amqps://anonymous@hpfx.collab.science.gc.ca/ messages: good: 7 bad: 0 bytes: 976Bytes average: 139Bytes
+2025-05-14 11:40:40,511 [INFO] 723173 sarracenia.flowcb.housekeeping.resources on_housekeeping Current cpu_times: user=0.38 system=0.05
+2025-05-14 11:40:40,511 [INFO] 723173 sarracenia.flowcb.housekeeping.resources on_housekeeping Current mem usage: 104.7MiB, accumulating count (7 or 13/100 so far) before self-setting threshold
+2025-05-14 11:40:40,511 [INFO] 723173 sarracenia.flowcb.log stats version: 3.00.59rc1, started: 17 seconds ago, last_housekeeping: 18.0 seconds ago
+2025-05-14 11:40:40,511 [INFO] 723173 sarracenia.flowcb.log stats messages received: 19, accepted: 13, rejected: 6   rate accepted: 68.4% or 0.7 m/s
+2025-05-14 11:40:40,511 [INFO] 723173 sarracenia.flowcb.log stats files transferred: 7 bytes: 851Bytes rate: 47Bytes/sec
+2025-05-14 11:40:40,511 [INFO] 723173 sarracenia.flowcb.log stats lag: average: 3.69, maximum: 6.60
+2025-05-14 11:40:40,511 [INFO] 723173 sarracenia.flow run 14 messages processed &gt; messageCountMax 10
+2025-05-14 11:40:40,511 [INFO] 723173 sarracenia.flow please_stop asked to stop
+2025-05-14 11:40:40,511 [INFO] 723173 sarracenia.moth please_stop asked to stop
+2025-05-14 11:40:40,511 [INFO] 723173 sarracenia.moth please_stop asked to stop
+2025-05-14 11:40:40,512 [INFO] 723173 sarracenia.flow _runHousekeeping on_housekeeping pid: 723173 subscribe/dual_amis instance: 0
+2025-05-14 11:40:40,512 [INFO] 723173 sarracenia.flowcb.gather.message on_housekeeping from amqps://anonymous@dd.weather.gc.ca/ messages: good: 0 bad: 0 bytes: 0Bytes average: 0Bytes
+2025-05-14 11:40:40,512 [INFO] 723173 sarracenia.flowcb.gather.message on_housekeeping from amqps://anonymous@hpfx.collab.science.gc.ca/ messages: good: 0 bad: 0 bytes: 0Bytes average: 0Bytes
+2025-05-14 11:40:40,512 [INFO] 723173 sarracenia.flowcb.housekeeping.resources on_housekeeping Current cpu_times: user=0.38 system=0.05
+2025-05-14 11:40:40,512 [INFO] 723173 sarracenia.flowcb.housekeeping.resources on_housekeeping Current mem usage: 104.7MiB, accumulating count (7 or 13/100 so far) before self-setting threshold
+2025-05-14 11:40:40,512 [INFO] 723173 sarracenia.flowcb.log stats version: 3.00.59rc1, started: 17 seconds ago, last_housekeeping:  0.0 seconds ago
+2025-05-14 11:40:40,512 [INFO] 723173 sarracenia.flowcb.log stats messages received: 0, accepted: 0, rejected: 0   rate accepted: 0.0% or 0.0 m/s
+2025-05-14 11:40:40,512 [INFO] 723173 sarracenia.flowcb.log stats files transferred: 0 bytes: 0Bytes rate: 0Bytes/sec
+2025-05-14 11:40:40,554 [INFO] 723173 sarracenia.flow close flow/close completed cleanly pid: 723173 subscribe/dual_amis instance: 0
+
+</pre></div></div>
+</div>
+<p>Sans le plugin, le téléchargement mettrait tous les fichiers directement dans le répertoire de réception. avec l’ajout du retour wistree, il place le fichier dans /tmp/hpfx_amis. Avec le changement, il le place dans l’arborescence des répertoires WIS et ajoute un suffixe selon le type de fichier.</p>
+<section id="Entrées-de-fichier-de-configuration-et-rappels">
+<h2>Entrées de fichier de configuration et rappels<a class="headerlink" href="#Entrées-de-fichier-de-configuration-et-rappels" title="Link to this heading"></a></h2>
+<p><a class="reference external" href="../Reference/flowcb.html#module-sarracenia.flowcb.log">flowcb.log</a></p>
+<p>Pour ajouter un retour à un flux, une ligne est ajoutée au fichier de configuration du flux:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>flowcb sarracenia.flowcb.log.Log
+</pre></div>
+</div>
+<p>Si vous suivez la convention et que le nom de la classe est une version en majuscules (Log) du nom de fichier (log), alors un raccourci est disponible:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>callback log
+</pre></div>
+</div>
+<p>Quoi qu’il en soit, cela entraînera l’importation de la classe par Sarracenia, puis chercher des points d’entrée dans la classe à appeler aux moments opportuns.</p>
+<p>Le constructeur de classe accepte un objet de classe sarracenia.config.Config, appelé options, qui stocke tous les paramètres à utiliser par le flux en cours d’exécution. Les options sont utilisées pour remplacer le comportement par défaut des flux et des rappels. L’argument de flowcb est une classe python standard qui doit se trouver dans le chemin python normal pour python <em>import</em>, et le dernier élément est le nom de la classe dans le fichier qui doit être instancié en tant qu’instance
+flowcb.</p>
+<p>un paramètre pour un rappel est déclaré comme suit :</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>set sarracenia.flowcb.filter.log.Log.logLevel debug
+</pre></div>
+</div>
+<p>(le préfixe du paramètre correspond à la hiérarchie des types dans flowCallback)</p>
+<p>lorsque le constructeur du rappel est appelé, son argument options contiendra :</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>options.logLevel = &#39;debug&#39;
+</pre></div>
+</div>
+<p>Si aucun remplacement spécifique au module n’est présent, le paramètre le plus global est utilisé.</p>
+<p>Ainsi, l’utilisation des rappels peut être faite sans beaucoup de connaissances en python, juste la possibilité de créer des fichiers de configuration.</p>
+<p>Au-delà de ce point, nous trouvons des conseils pour les personnes qui souhaitent écrire leurs propres retours en Python. Les rappels sont en Python ordinaire, avec quelques plis:</p>
+</section>
+<section id="Écrire-Vos-Propres-Rappels">
+<h2>Écrire Vos Propres Rappels<a class="headerlink" href="#Écrire-Vos-Propres-Rappels" title="Link to this heading"></a></h2>
+<p>Un rappel de flux est une classe python construite avec des routines nommées pour indiquer quand le programmeur veut qu’elles soient appelées. Pour ce faire, créez une routine qui sous-classe <em>sarracenia.flowcb.FlowCB</em> afin que la classe ait normalement:</p>
+<p>from sarracenia.flowcb import FlowCB</p>
+<p>parmi les importations dans le haut du fichier. Dans la partie principale du fichier, il y aura les classes de rappel personnalisées:</p>
+<p>class Myclass(FlowCB):</p>
+<p>déclarée comme sous-classe en tant que FlowCB. Les principales routines de la classe sont des points d’entrée qui seront appelés au moment où leur nom l’indique. S’il manque à une classe un point d’entrée donné, elle ne sera tout simplement pas appelée. La classe <strong>init</strong>() est utilisée pour initialiser les choses pour la classe de rappel :</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>def __init__(self, options):
+
+    self.o = options
+
+    logging.basicConfig(format=self.o.logFormat,
+                        level=getattr(logging, self.o.logLevel.upper()))
+    logger.setLevel(getattr(logging, self.o.logLevel.upper()))
+
+    self.o.add_option( &#39;myoption&#39;, &#39;str&#39;, &#39;usuallyThis&#39;)
+</pre></div>
+</div>
+<p>Les lignes de configuration du logging dans <strong>init</strong> permettent de définir un niveau de logging spécifique pour cette classe flowCallback. Une fois le passe-partout de logging terminé, la routine add_option pour définir les paramètres de la classe. Les utilisateurs peuvent les inclure dans les fichiers de configuration, tout comme les options intégrées:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>myoption IsReallyNeeded
+</pre></div>
+</div>
+<p>Le résultat d’un tel réglage est que <em>self.o.myoption = ‘IsReallyNeeded’</em>. Si aucune valeur n’est définie dans la configuration, <em>self.o.myoption</em> sera par défaut <em>‘usualThis’</em> Il existe différents <em>kinds</em> (types) d’options, où le type déclaré modifie l’analyse:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>&#39;count&#39;    type de nombre entier.
+&#39;duration&#39; un nombre à virgule flottante indiquant une quantité de secondes (0.001 est 1 milliseconde)
+           modifié par un suffixe d&#39;unité ( m-minute, h-hour (heure), w-week(semaine) )
+&#39;flag&#39;     option booléenne (Vrai/Faux).
+&#39;list&#39;     une liste de valeurs de chaîne, chaque occurrence successive étant enchaînée au total.
+           toutes les options du plugin v2 sont déclarées de type liste.
+&#39;taille&#39;   taille entière. Suffixes k, m et g pour les multiplicateurs kilo, méga et giga (base 2).
+&#39;str&#39;      une valeur de chaîne arbitraire, comme tous les types ci-dessus, chaque
+           occurrence suivante remplace la précédente.
+</pre></div>
+</div>
+</section>
+<section id="Listes-De-Travail">
+<h2>Listes De Travail<a class="headerlink" href="#Listes-De-Travail" title="Link to this heading"></a></h2>
+<p>Autre qu’ <em>options</em>, l’autre argument principal des routines de rappel after_accept et after_work est la liste de travail. La liste de travail est donnée aux points d’entrée se produisant pendant le traitement des messages et est un certain nombre de listes de travail de messages:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>worklist.incoming --&gt; messages to process (either new or retries.)
+worklist.ok       --&gt; successfully processed
+worklist.rejected --&gt; messages to not be further processed.
+worklist.failed   --&gt; messages for which processing failed.
+                      failed messages will be retried.
+worklist.directories_ok --&gt; list of directories created during processing.
+</pre></div>
+</div>
+<p>Initialement, tous les messages sont placés dans worklists.incoming. Si un plugin décide :</p>
+<ul class="simple">
+<li><p>a message is not relevant, moved it to the rejected worklist.</p></li>
+<li><p>a no further processing of the message is needed, move it to ok worklist.</p></li>
+<li><p>an operation failed and it should be retried later, move to failed worklist.</p></li>
+</ul>
+<p>Ne supprimez pas de toutes les listes, déplacez uniquement les messages entre les listes de travail. Il est nécessaire de mettre les messages rejetés dans la liste de travail appropriée afin qu’ils soient reconnus comme reçus. Les messages ne peuvent être supprimés qu’après la prise en charge de l’accusé de réception.</p>
+</section>
+<section id="Sortie-d'Exécution">
+<h2>Sortie d’Exécution<a class="headerlink" href="#Sortie-d'Exécution" title="Link to this heading"></a></h2>
+<p>Python a une excellente journalisation intégrée et doit une fois utiliser le module de manière normale et pythonique, avec:</p>
+<p>import logging</p>
+<p>Après toutes les importations dans votre fichier source python, définissez un enregistreur pour le fichier source:</p>
+<p>logger = logging.getLogger(_<em>name_</em>)</p>
+<p>Comme c’est normal avec le module de journalisation Python, les messages peuvent ensuite être publiés dans le journal:</p>
+<p>logger.debug(‘got here’)</p>
+<p>Chaque message du journal sera précédé de la classe et de la routine émettant le message de journal, ainsi que de la date/heure.</p>
+</section>
+<section id="Exemple-de-sous-classe-Flowcb">
+<h2>Exemple de sous-classe Flowcb<a class="headerlink" href="#Exemple-de-sous-classe-Flowcb" title="Link to this heading"></a></h2>
+<p>Avec les informations ci-dessus sur la gestion des options, les listes de travail et la journalisation, nous sommes prêts à comprendre le module wistree que nous venons d’utiliser. Cette classe wistree.py accepte les fichiers dont les noms commencent par AHL et renomme l’arborescence de répertoires dans un standard différent, celui en évolution pour le WMO WIS 2.0 (pour plus d’informations sur ce module: <a class="reference external" href="https://github.com/wmo-im/GTStoWIS2">https://github.com/wmo-im/GTStoWIS2</a>)</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[7]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>  <span class="kn">from</span> <span class="nn">sarracenia.flowcb</span> <span class="kn">import</span> <span class="n">FlowCB</span>
+  <span class="kn">import</span> <span class="nn">logging</span>
+  <span class="kn">import</span> <span class="nn">GTStoWIS2</span>
+
+  <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+  <span class="k">class</span> <span class="nc">Wistree</span><span class="p">(</span><span class="n">FlowCB</span><span class="p">):</span>
+
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">options</span><span class="p">):</span>
+
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">options</span><span class="p">,</span> <span class="s1">&#39;logLevel&#39;</span><span class="p">):</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">logging</span><span class="p">,</span> <span class="n">options</span><span class="o">.</span><span class="n">logLevel</span><span class="o">.</span><span class="n">upper</span><span class="p">()))</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">setLevel</span><span class="p">(</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">topic_builder</span><span class="o">=</span><span class="n">GTStoWIS2</span><span class="o">.</span><span class="n">GTStoWIS2</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">o</span> <span class="o">=</span> <span class="n">options</span>
+
+
+    <span class="k">def</span> <span class="nf">after_accept</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">worklist</span><span class="p">):</span>
+
+        <span class="n">new_incoming</span><span class="o">=</span><span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">msg</span> <span class="ow">in</span> <span class="n">worklist</span><span class="o">.</span><span class="n">incoming</span><span class="p">:</span>
+
+            <span class="c1"># fix file name suffix.</span>
+            <span class="n">type_suffix</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">topic_builder</span><span class="o">.</span><span class="n">mapAHLtoExtension</span><span class="p">(</span> <span class="n">msg</span><span class="p">[</span><span class="s1">&#39;new_file&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">:</span><span class="mi">2</span><span class="p">]</span> <span class="p">)</span>
+            <span class="n">tpfx</span><span class="o">=</span><span class="n">msg</span><span class="p">[</span><span class="s1">&#39;subtopic&#39;</span><span class="p">]</span>
+
+            <span class="c1"># input has relpath=/YYYYMMDDTHHMM/... + pubTime</span>
+            <span class="c1"># need to move the date from relPath to BaseDir, adding the T hour from pubTime.</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">new_baseSubDir</span><span class="o">=</span><span class="n">tpfx</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">+</span><span class="n">msg</span><span class="p">[</span><span class="s1">&#39;pubTime&#39;</span><span class="p">][</span><span class="mi">8</span><span class="p">:</span><span class="mi">11</span><span class="p">]</span>
+                <span class="n">t</span><span class="o">=</span><span class="s1">&#39;.&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tpfx</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">2</span><span class="p">])</span><span class="o">+</span><span class="s1">&#39;.&#39;</span><span class="o">+</span><span class="n">new_baseSubDir</span>
+                <span class="n">new_baseDir</span> <span class="o">=</span> <span class="n">msg</span><span class="p">[</span><span class="s1">&#39;new_dir&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">sep</span> <span class="o">+</span> <span class="n">new_baseSubDir</span>
+                <span class="n">new_relDir</span> <span class="o">=</span> <span class="s1">&#39;WIS&#39;</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">sep</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">topic_builder</span><span class="o">.</span><span class="n">mapAHLtoTopic</span><span class="p">(</span><span class="n">msg</span><span class="p">[</span><span class="s1">&#39;new_file&#39;</span><span class="p">])</span>
+                <span class="n">new_dir</span> <span class="o">=</span> <span class="n">new_baseDir</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">sep</span> <span class="o">+</span> <span class="n">new_relDir</span>
+
+                <span class="k">if</span> <span class="n">msg</span><span class="p">[</span><span class="s1">&#39;new_file&#39;</span><span class="p">][</span><span class="o">-</span><span class="nb">len</span><span class="p">(</span><span class="n">type_suffix</span><span class="p">):]</span> <span class="o">!=</span> <span class="n">type_suffix</span><span class="p">:</span>
+                    <span class="n">new_file</span> <span class="o">=</span> <span class="n">msg</span><span class="p">[</span><span class="s1">&#39;new_file&#39;</span><span class="p">]</span><span class="o">+</span><span class="n">type_suffix</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">new_file</span> <span class="o">=</span> <span class="n">msg</span><span class="p">[</span><span class="s1">&#39;new_file&#39;</span><span class="p">]</span>
+
+                <span class="n">msg</span><span class="o">.</span><span class="n">updatePaths</span><span class="p">(</span> <span class="bp">self</span><span class="o">.</span><span class="n">o</span><span class="p">,</span> <span class="n">new_baseDir</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">sep</span> <span class="o">+</span> <span class="n">new_relDir</span><span class="p">,</span> <span class="n">new_file</span> <span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">ex</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span> <span class="s2">&quot;skipped&quot;</span> <span class="p">,</span> <span class="n">exc_info</span><span class="o">=</span><span class="kc">True</span> <span class="p">)</span>
+                <span class="n">worklist</span><span class="o">.</span><span class="n">failed</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+                <span class="k">continue</span>
+
+            <span class="n">msg</span><span class="p">[</span><span class="s1">&#39;_deleteOnPost&#39;</span><span class="p">]</span> <span class="o">|=</span> <span class="nb">set</span><span class="p">(</span> <span class="p">[</span> <span class="s1">&#39;from_cluster&#39;</span><span class="p">,</span> <span class="s1">&#39;sum&#39;</span><span class="p">,</span> <span class="s1">&#39;to_clusters&#39;</span> <span class="p">]</span> <span class="p">)</span>
+            <span class="n">new_incoming</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span>
+
+        <span class="n">worklist</span><span class="o">.</span><span class="n">incoming</span><span class="o">=</span><span class="n">new_incoming</span>
+<br/><br/></pre></div>
+</div>
+</div>
+</section>
+<section id="Plugins-qui-changent-la-façon-dont-un-fichier-est-téléchargé">
+<h2>Plugins qui changent la façon dont un fichier est téléchargé<a class="headerlink" href="#Plugins-qui-changent-la-façon-dont-un-fichier-est-téléchargé" title="Link to this heading"></a></h2>
+<p>La routine <em>after_accept</em> est l’une des deux plus couramment utilisées. Il est utilisé pour modifier le traitement avant le téléchargement ou l’envoi d’un fichier. Pour traiter le fichier après son téléchargement, le point d’entrée <em>after_work</em> est utilisé pour traiter la liste worklist.ok (fichiers qui ont été téléchargés avec succès).</p>
+<p>La routine after_accept a une boucle externe qui parcourt toute la liste des messages entrants. Il construit une nouvelle liste de messages entrants à partir de ceux qu’il accepte, tout en ajoutant tous les messages rejetés à <em>worklist.failed.</em> La liste est juste une liste de messages, où chaque message est un dictionnaire python avec tous les champs stockés dans un message au format v03. Dans le message, il y a, par exemple, les champs <em>baseURL</em> et <em>relPath</em> :</p>
+<ul class="simple">
+<li><p>baseURL - la baseURL de la ressource à partir de laquelle un fichier serait obtenu.</p></li>
+<li><p>relPath - le chemin relatif à ajouter à la baseURL pour obtenir l’URL de téléchargement complète.</p></li>
+</ul>
+<p>Cela se produit avant que le transfert (téléchargement ou envoi, ou traitement) du fichier ait eu lieu, on peut donc changer le comportement en modifiant les champs du message. Normalement, les chemins de téléchargement (appelés new_dir et new_file) refléteront l’intention de copier l’arborescence source d’origine. donc si vous avez <em>a/b/c.txt</em> sur l’arborescence des sources et que vous téléchargez dans le répertoire <em>mine</em> sur le système local, le new_dir serait <em>mine/a/b</em> et new_file serait
+<em>c.txt</em>.</p>
+</section>
+<section id="Plugins-qui-Traitent-un-Fichier-après-son-Téléchargement">
+<h2>Plugins qui Traitent un Fichier après son Téléchargement<a class="headerlink" href="#Plugins-qui-Traitent-un-Fichier-après-son-Téléchargement" title="Link to this heading"></a></h2>
+<p>Un cas d’utilisation courant est pour les plugins avec un point d’entrée <em>after_work</em> pour lire le fichier après son téléchargement et le transformer en un produit dérivé avec un nom différent. Ainsi, le nouveau fichier est créé comme dans la section précédente. Le message pour le fichier téléchargé doit encore être déplacé sur une liste pour s’assurer qu’il est reconnu par le courtier. Un tel point d’entrée ressemblerait à ceci:</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[8]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><br/><span></span>    <span class="k">def</span> <span class="nf">after_work</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">worklist</span><span class="p">):</span>
+
+        <span class="n">new_ok</span><span class="o">=</span><span class="p">[]</span>
+        <span class="k">for</span> <span class="n">m</span> <span class="ow">in</span> <span class="n">worklist</span><span class="o">.</span><span class="n">ok</span><span class="p">:</span>
+             <span class="n">success</span><span class="o">=</span><span class="n">do_something</span><span class="p">()</span>
+             <span class="k">if</span> <span class="n">success</span><span class="p">:</span>
+                   <span class="n">new_ok</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">m</span><span class="p">)</span>
+             <span class="c1"># since it is already acknowledged, we can just drop it from ok.</span>
+
+
+        <span class="n">worklist</span><span class="o">.</span><span class="n">ok</span> <span class="o">=</span> <span class="n">new_ok</span>
+        <span class="c1"># the messages on worklist.ok will get posted in the next algorithm phase.</span>
+</pre></div>
+</div>
+</div>
+</section>
+<section id="Plugins-qui-renomment-les-fichiers">
+<h2>Plugins qui renomment les fichiers<a class="headerlink" href="#Plugins-qui-renomment-les-fichiers" title="Link to this heading"></a></h2>
+<p>Le plugin ci-dessus modifie la disposition des fichiers à télécharger, en fonction de la classe <a class="reference external" href="https://github.com/wmo-im/GTStoWIS">GTStoWIS</a>, qui prescrit une arborescence de répertoires différente en sortie. Il y a beaucoup de champs à mettre à jour lors de la modification du placement des fichiers, il est donc préférable d’utiliser:</p>
+<p>msg.updatePaths( self.o, new_dir, new_file )</p>
+<p>pour mettre à jour correctement tous les champs nécessaires dans le message. Il mettra à jour ‘new_baseURL’, ‘new_relPath’, ‘new_subtopic’ à utiliser lors de la publication.</p>
+<p>La partie try/except de la routine traite du cas où, si un fichier arrive avec un nom à partir duquel une arborescence de rubriques ne peut pas être construite, une exception python peut se produire et le message est ajouté à la liste de travail ayant échoué et ne sera pas être traitées par des plugins ultérieurs.</p>
+</section>
+<section id="Plugins-qui-Créent-de-Nouveaux-Fichiers">
+<h2>Plugins qui Créent de Nouveaux Fichiers<a class="headerlink" href="#Plugins-qui-Créent-de-Nouveaux-Fichiers" title="Link to this heading"></a></h2>
+<p>La routine ci-dessus est parfaite lorsqu’un fichier vient d’être renommé. Si un plugin a besoin de créer de nouveaux fichiers vaguement dérivés du fichier d’entrée, alors vous voulez créer de nouveaux messages pour ces fichiers à partir de rien:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>import sarracenia
+
+m = sarracenia.Message.fromFileData(sample_fileName, self.o, os.stat(sample_fileName) )
+</pre></div>
+</div>
+<p>La routine msg_fromFileData utilisera self.o pour appliquer les paramètres de publication appropriés. Aucune connaissance des formats de message ou de la construction de champs n’est nécessaire. Si le fichier n’est pas local, comme lors de l’écriture d’un rappel d’interrogation, un routage alternatif peut être utilisé:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>m = sarracenia.Message.fromFileInfo(sample_fileName, self.o, fake_stat_info )
+</pre></div>
+</div>
+<p>le faux enregistrement de statistiques (selon la page de manuel stat(2) ou python os.stat() ) peut être construit à partir d’autres champs, en commençant par:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>import paramiko
+
+fake_stat = paramiko.SFTPAttributes()
+fake_stat.st_mtime = ... something else... perhaps an http header?
+fake_stat.st_size = ... again will vary by context.
+</pre></div>
+</div>
+<p>Dans tous les cas, une fois que vous avez le message, il peut être ajouté à la liste entrante.</p>
+</section>
+<section id="Other-Examples">
+<h2>Other Examples<a class="headerlink" href="#Other-Examples" title="Link to this heading"></a></h2>
+<p>Le sous-classement de <a class="reference external" href="../Reference/flowcb.html">Sarracenia.flowcb</a> est utilisé en interne pour faire beaucoup de travail de base. C’est une bonne idée de regarder le code source de Sarracenia lui-même. Par exemple:</p>
+<ul class="simple">
+<li><p><a class="reference external" href="https://github.com/MetPX/Sarracenia/blob/development/sarracenia/flowcb/__init__.py">sarracenia.flowcb</a> jetez un oeil au fichier <strong>init</strong>.py là qui fournit ces informations sur un format plus programmatiquement succinct.</p></li>
+<li><p><a class="reference external" href="https://github.com/MetPX/Sarracenia/blob/development/sarracenia/flowcb/gather/file.py">sarracenia.flowcb.gather.file</a> est une classe qui implémente: la publication de fichiers et la surveillance de répertoires, dans le sens d’un rappel qui implémente le point d’entrée <em>gather</em>, en lisant un système de fichiers et en construisant un liste des messages à traiter.</p></li>
+<li><p><a class="reference external" href="https://github.com/MetPX/Sarracenia/blob/development/sarracenia/flowcb/gather/message.py">sarracenia.flowcb.gather.message</a> est une classe qui implémente la réception de messages à partir de flux de protocole de file d’attente de messages.</p></li>
+<li><p><a class="reference external" href="https://github.com/MetPX/Sarracenia/blob/development/sarracenia/flowcb/nodupe">sarracenia.flowcb.gather.nodupe</a> Ce module supprime les doublons du message flux basés sur les sommes de contrôle d’intégrité.</p></li>
+<li><p><a class="reference external" href="https://github.com/MetPX/Sarracenia/blob/development/sarracenia/flowcb/post/message.py">sarracenia.flowcb.post.message</a> est une classe qui implémente la publication messages vers flux de protocole de file d’attente de messages</p></li>
+<li><p><a class="reference external" href="https://github.com/MetPX/Sarracenia/blob/development/sarracenia/flowcb/retry.py">sarracenia.flowcb.retry</a> lorsque le transfert d’un fichier échoue. Sarracenia doit conserver le message pertinent dans un fichier d’état pour un moment ultérieur où il pourra être réessayé.</p></li>
+</ul>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[ ]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>
+</pre></div>
+</div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="1_CLI_introduction.html" class="btn btn-neutral float-left" title="Téléchargement en utilisant la console" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="3_api_flow_demo.html" class="btn btn-neutral float-right" title="Exemple d’API de flux" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2022, Shared Services Canada, Government of Canada, GPLv2.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

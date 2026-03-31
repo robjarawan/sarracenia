@@ -1,0 +1,452 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "id": "annoying-preservation",
+   "metadata": {
+    "slideshow": {
+     "slide_type": "slide"
+    }
+   },
+   "source": [
+    "# A first Example using Sarracenia Moth API\n",
+    "\n",
+    "Sarracenia is a package built to announce the availability of new data, usually as files.\n",
+    "We put files on standard servers, making them available via web or sftp, and tell\n",
+    "users that they have arrived using messages.  \n",
+    "\n",
+    "Sarracenia uses existing standard message passing protocols, like rabbitmq/AMQP to transport the messages,\n",
+    "and in message passing circles, as server that distributes messages is called a *broker*.\n",
+    "\n",
+    "We call the combination of a message broker, and a file server (which can be a single server, or a large cluster) a **data pump**.\n",
+    "\n",
+    "Assuming you have installed the **metpx-sr3** package, either as a debian package, or via pip,\n",
+    "One way access announcements to use with sarracenia.moth (Messages Organized by Topic Headers) class,\n",
+    "which allows a python program to connect to a Sarracenia server, and start receiving \n",
+    "messages that announce resources.\n",
+    "\n",
+    "The factory to build sarracenia.moth objects requires a dictionary of settings as an argument: \n",
+    "\n",
+    "\n",
+    "* options: a dictionary of other settings the class might use.\n",
+    "\n",
+    "  * 'broker': an object (Credential) containing a url pointing to the message server that is announcing products, and other related options.\n",
+    "\n",
+    "   \n",
+    "\n",
+    "The example below builds a call to an broker anyone can access, and just request\n",
+    "5 announcements.\n",
+    "\n",
+    "You can run it, and then we can discuss a few settings:\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "id": "218fa2ba-9d98-4deb-b98c-10c48052adc2",
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "options: {'acceptUnmatched': True, 'batch': 25, 'broker': <sarracenia.config.credentials.Credential object at 0x7168c4e9dd60>, 'dry_run': False, 'exchange': None, 'expire': None, 'inline': False, 'inlineEncoding': 'guess', 'inlineByteMax': 4096, 'logFormat': '%(asctime)s [%(levelname)s] %(name)s %(funcName)s %(message)s', 'logLevel': 'info', 'messageDebugDump': False, 'message_strategy': {'reset': True, 'stubborn': True, 'failure_duration': '5m'}, 'messageAgeMax': 0, 'topicPrefix': ['v03'], 'tlsRigour': 'normal', 'auto_delete': False, 'durable': True, 'exchangeDeclare': True, 'persistent': True, 'prefetch': 25, 'queueBind': True, 'queueDeclare': True, 'reset': False, 'subtopic': [], 'vhost': '/', 'queueShare': 'SomethingHelpfulToYou', 'queueName': 'q_${BROKER_USER}_${HOSTNAME}_${QUEUESHARE}', 'subscriptions': [{'broker': <sarracenia.config.credentials.Credential object at 0x7168c4e9dd60>, 'bindings': [{'exchange': 'xpublic', 'prefix': ['v02', 'post'], 'sub': ['#']}], 'queue': {'name': 'q_anonymous_fractal_SomethingHelpfulToYou', 'template': 'q_${BROKER_USER}_${HOSTNAME}_${QUEUESHARE}', 'auto_delete': False, 'clean_session': True, 'durable': True, 'expire': 600, 'max_inflight_messages': 0, 'max_queued_messages': 0, 'prefetch': 25, 'qos': 1, 'receiveMaximum': 0, 'tlsRigour': 'normal', 'bind': True, 'declare': True}}], 'subscription_index': 0}\n"
+     ]
+    }
+   ],
+   "source": [
+    "\"\"\"\n",
+    "\n",
+    "   An example of consuming data made available by a Sarracenia Data Pump.\n",
+    "\n",
+    "\"\"\"\n",
+    "import sarracenia.moth\n",
+    "import sarracenia.moth.amqp\n",
+    "import sarracenia.config.credentials\n",
+    "import sarracenia.config.subscription\n",
+    "\n",
+    "import time\n",
+    "import socket\n",
+    "\n",
+    "options = sarracenia.moth.default_options\n",
+    "options.update(sarracenia.moth.amqp.default_options)\n",
+    "\n",
+    "options['broker'] = sarracenia.config.credentials.Credential(\n",
+    "    'amqps://anonymous:anonymous@hpfx.collab.science.gc.ca')\n",
+    "\n",
+    "# binding tuple:  consists of prefix, exchange, rest.\n",
+    "# effect is to bind from queue using prefix/rest to exchange.\n",
+    "options['queueShare'] = 'SomethingHelpfulToYou'\n",
+    "\n",
+    "\n",
+    "# Note: queue name must start with q_<username> because server is configured to deny anything else.\n",
+    "#\n",
+    "options['queueName'] = 'q_${BROKER_USER}_${HOSTNAME}_${QUEUESHARE}'\n",
+    "\n",
+    "queue = {'name': 'q_anonymous_' + socket.getfqdn() + '_' + options['queueShare'],\n",
+    "         'template': options['queueName'], \n",
+    "         'auto_delete' : False, # AO == amqp only\n",
+    "         'clean_session': True, # MO == mqtt only.\n",
+    "         'durable': True, # AO: queue should survive broker reboots\n",
+    "         'expire': 600 ,  # MO: seconds until queue with no consumers disappears.\n",
+    "         'max_inflight_messages': 0, # MO: flow control.\n",
+    "         'max_queued_messages': 0,  \n",
+    "         'prefetch': 25, \n",
+    "         'qos': 1, \n",
+    "         'receiveMaximum': 0, \n",
+    "         'tlsRigour': 'normal',\n",
+    "         'bind': True,  # whether to bind queues/subscriptions\n",
+    "         'declare': True # whether to declare queues/subscriptions\n",
+    "       }\n",
+    "\n",
+    "\n",
+    "options['subscriptions'] = sarracenia.config.subscription.Subscriptions( [ { \n",
+    "   'broker': options['broker'],\n",
+    "   'bindings': [ { 'exchange':'xpublic', 'prefix': ['v02','post'], 'sub':['#'] } ],\n",
+    "   'queue' : queue\n",
+    "      } ] )\n",
+    "\n",
+    "options['subscription_index'] = 0\n",
+    "\n",
+    "# turn on debug output for these classes.\n",
+    "#options['settings'] = {}\n",
+    "#options['settings']['sarracenia.moth.mqtt.MQTT'] = { 'logLevel':'debug' }\n",
+    "#options['settings']['sarracenia.moth.amqp.AMQP'] = { 'logLevel':'debug' }\n",
+    "\n",
+    "#options['logLevel'] = 'debug'\n",
+    "\n",
+    "print('options: %s' % options)\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "figured-estimate",
+   "metadata": {
+    "slideshow": {
+     "slide_type": "slide"
+    }
+   },
+   "source": [
+    "\n",
+    "The **broker** setting is an object containing a conventional URL and other options, indicating the messaging protocol to be used to access the upstream server. When you connect to a broker, you need to tell it what messages you are interested in.\n",
+    "In Moth, all the brokers we are accessing are expected to use topic hierarchies. You can see them if you\n",
+    "successfully ran the example above, there should be in the message print outs a \"topic\" element in \n",
+    "dictionaries.  Here is an example of one:\n",
+    "\n",
+    "__v02.post.20210213.WXO-DD.observations.swob-ml.20210213.CTZR__\n",
+    "\n",
+    "This divides into two parts:\n",
+    "\n",
+    "* topic_prefix: v02.post\n",
+    "* the rest of the topic tree is a reflection of the path to the announced product, relative to a base directory.\n",
+    "\n",
+    "\n",
+    "In AMQP, there is the concept of \"exchanges\" which are sort of analogous to television channels... they are groupings of announcements.  so to connect to an AMQP broker, one needs to specify: \n",
+    "\n",
+    "* exchange: Sarracenia promulgates xpublic as a conventional default.\n",
+    "* topic_prefix: decide which version of messages you want to obtain.  This server is producing v02 ones.\n",
+    "* subtopic: what subset of topic_prefix messages do we want to subscribe to.\n",
+    "\n",
+    "\n",
+    "## Bindings\n",
+    "\n",
+    "The bindings option sets out the three values above.  in the example, The bindings are:\n",
+    "\n",
+    "* topic_prefix: v02.post  (get v02 messages.)\n",
+    "* exchange: xpublic (the default one.)\n",
+    "* subtopic: # ( an AMQP wildcard meaning everything. )\n",
+    "\n",
+    "we connect to the\n",
+    "\n",
+    "amqp://hpfx.collab.science.gc.ca broker, on the *xpublic* exchange, and the we will be interested in all messages matching the v02.post.# topic specification... (which is all v02 messages available.)\n",
+    "\n",
+    "### subtopic\n",
+    "\n",
+    "The subtopic here ( __#__ ) is matches everything produced on the server.  The wider the subtopic, the more messages have to be sent, and the more processing done.  It is better to make it narrower. Taking the example above, if we are interested in swob, a subtopic like:\n",
+    "\n",
+    "* *.WXO-DD.observations.swob-ml.#\n",
+    "\n",
+    "would match all of the swobs similar to the one above, but avoid sending messages for non-swobs to you.\n",
+    "\n",
+    "\n",
+    "## queueName\n",
+    "\n",
+    "By convention in brokers administered by Sarracenia, users can only create queues that start with q_ followed by their user name. we connected as anonymous, and so q_anonymous must be used.  After that, the rest can be whatever you want, but there are a few considerations:\n",
+    "\n",
+    "* If you want to start up multiple python processes to share a data feed, they all specify the same queue_name, and they will share the flow of messages.  It scales well for a few dozen co-operating downloaders, but does not scale infinitely, do not expect more than 99 or so processes to be able to effectively share a load from a single queue.  To scale beyond that with AMQP, multiple selections are better.\n",
+    "\n",
+    "* if you are going to ask for help from the data pump admins... you are going to need to supply them the name of the queue, and they may need to be able to pick it out of hundreds or thousands that are on the server.\n",
+    "\n",
+    "\n",
+    "## Messages\n",
+    "\n",
+    "Different messaging protocols have different storage structures and conventions. the MoTH class returns\n",
+    "messages as python dictionaries regardless of what protocol is used to obtain them or, if forwarding them, to transmit them.  One can add fields for programmatic use to the messages just by adding elements to the dictionary.\n",
+    "If they are only for internal use, then add the name of the dictionary element to the special '\\_deleteOnPost' key, so that the dictionary element will be dropped when forwarding the message.\n",
+    "\n",
+    "\n",
+    "## Ack\n",
+    "\n",
+    "Messages are marked in transit by the broker, and if you do not acknowledge them, the data pump will hold onto them, and eventually re-dispatch them. keeping pending messages in memory will also slow down processing of all messages. One should acknowledge receipt of messages as soon as practicable, but not so soon that you will lose data if the the program is interrupted.  In the example, we acknowledge after we have done our work of printing the message.\n",
+    "\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "id": "little-louis",
+   "metadata": {
+    "scrolled": true
+   },
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "2025-05-06 18:05:03,834 [INFO] sarracenia.moth.amqp _queueDeclare queue declared q_anonymous_fractal_SomethingHelpfulToYou (as: amqps://anonymous@hpfx.collab.science.gc.ca), (messages waiting: 0)\n",
+      "2025-05-06 18:05:03,834 [INFO] sarracenia.moth.amqp getSetup binding q_anonymous_fractal_SomethingHelpfulToYou with v02.post.# to xpublic (as: amqps://anonymous@hpfx.collab.science.gc.ca)\n",
+      "2025-05-06 18:05:04,320 [INFO] sarracenia getContent retrieving from: https://hpfx.collab.science.gc.ca//20250506/WXO-DD/bulletins/alphanumeric/20250506/SX/KWAL/22/SXCN40_KWAL_062204___40145\n",
+      "2025-05-06 18:05:04,505 [INFO] sarracenia.moth.amqp getCleanUp deleting queue q_anonymous_fractal_SomethingHelpfulToYou\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "message 4: {'_format': 'v02', '_deleteOnPost': {'exchange', 'ack_id', 'topic', 'subtopic', 'local_offset', '_format', 'subscription_index'}, 'sundew_extension': 'cvt_nws_bulletins-sr:KWAL:SX:3:Direct:20250506220456', 'from_cluster': 'DDSR.CMC', 'to_clusters': 'ALL', 'filename': 'msg_ddsr-WXO-DD3_1568f6bc99ba7c443b2ad5b40267e000:cvt_nws_bulletins-sr:KWAL:SX:3:Direct:20250506220456', 'mtime': '20250506T220457.623', 'atime': '20250506T220457.623', 'pubTime': '20250506T220457.623', 'baseUrl': 'https://hpfx.collab.science.gc.ca', 'relPath': '/20250506/WXO-DD/bulletins/alphanumeric/20250506/SX/KWAL/22/SXCN40_KWAL_062204___40145', 'subtopic': ['', '20250506', 'WXO-DD', 'bulletins', 'alphanumeric', '20250506', 'SX', 'KWAL', '22', 'SXCN40_KWAL_062204___40145'], 'identity': {'method': 'md5', 'value': 'mOj5zr2414RTPyrsf5uiog=='}, 'size': 121, 'exchange': 'xpublic', 'topic': 'v02.post.20250506.WXO-DD.bulletins.alphanumeric.20250506.SX.KWAL.22', 'ack_id': {'delivery_tag': 1, 'channel_id': 2, 'connection_id': '015deced-d58d-496a-8182-ab6521c5afac_sub', 'broker': 'hpfx.collab.science.gc.ca:5671//'}, 'local_offset': 0, 'subscription_index': 0}\n",
+      "first 50 bytes of corresponding file: b'SXCN40 KWAL 062204\\nCAB2C578 126220423\\n14.4\\n022\\n014'\n",
+      "obtained 1 product announcements\n"
+     ]
+    }
+   ],
+   "source": [
+    "h = sarracenia.moth.Moth.subFactory(options)\n",
+    "\n",
+    "count=0\n",
+    "good=0\n",
+    "while count < 5:\n",
+    "    m = h.getNewMessage()  #get only one Message\n",
+    "    if m is not None:\n",
+    "        print(\"message %d: %s\" % (count,m) )\n",
+    "        content = m.getContent() \n",
+    "        print(\"first 50 bytes of corresponding file: %s\" % content[0:50])\n",
+    "        good +=1 \n",
+    "        h.ack(m)\n",
+    "    time.sleep(0.1)\n",
+    "    count += 1\n",
+    "\n",
+    "h.cleanup() # remove server-side queue defined by Factory.\n",
+    "h.close()\n",
+    "print( f\"obtained {good} product announcements\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "other-woman",
+   "metadata": {
+    "slideshow": {
+     "slide_type": "slide"
+    }
+   },
+   "source": [
+    "2nd example ... combine baseURL + relPath (talk about retPath) and retrieve data...\n",
+    "use newMessages() instead of getNewMessage to show alternate consumption ui.\n",
+    "talk about http, and how retrieval will vary depending on the protocol listed in the baseUrl, and can get\n",
+    "complicated.\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "id": "abroad-sense",
+   "metadata": {
+    "scrolled": true
+   },
+   "outputs": [
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "2025-05-06 18:10:12,186 [INFO] sarracenia.moth.amqp _queueDeclare queue declared q_anonymous_fractal_xml_SomethingHelpfulToYou (as: amqps://anonymous@hpfx.collab.science.gc.ca), (messages waiting: 0)\n",
+      "2025-05-06 18:10:12,187 [INFO] sarracenia.moth.amqp getSetup binding q_anonymous_fractal_xml_SomethingHelpfulToYou with v02.post.*.WXO-DD.observations.swob-ml.# to xpublic (as: amqps://anonymous@hpfx.collab.science.gc.ca)\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "url 0: https://hpfx.collab.science.gc.ca/20250506/WXO-DD/observations/swob-ml/20250506/CXBO/2025-05-06-2209-CXBO-AUTO-minute-swob.xml\n",
+      "station: BEAUPORT, tc_id: XBO, lat: 46.836997, long: -71.197339, air_temp: 15.6\n",
+      "url 1: https://hpfx.collab.science.gc.ca/20250506/WXO-DD/observations/swob-ml/20250506/CXHI/2025-05-06-2208-CXHI-AUTO-minute-swob.xml\n",
+      "station: ULUKHAKTOK, tc_id: XHI, lat: 70.761452, long: -117.799964, air_temp: -8.3\n",
+      "url 2: https://hpfx.collab.science.gc.ca/20250506/WXO-DD/observations/swob-ml/20250506/CXWF/2025-05-06-2209-CXWF-AUTO-minute-swob.xml\n",
+      "station: WARFIELD RCS, tc_id: XWF, lat: 49.112211, long: -117.738333, air_temp: 23.8\n",
+      "url 3: https://hpfx.collab.science.gc.ca/20250506/WXO-DD/observations/swob-ml/partners/nt-forestry/20250506/aca3c7be/2025-05-06-2209-nwt-enr-aca3c7be-AUTO-swob.xml\n",
+      "station: Nahanni Butte - TL, tc_id: , lat: 61.0288, long: -123.384, air_temp: \n",
+      "url 4: https://hpfx.collab.science.gc.ca/20250506/WXO-DD/observations/swob-ml/20250506/CWGD/2025-05-06-2209-CWGD-AUTO-minute-swob.xml\n",
+      "station: GODERICH, tc_id: WGD, lat: 43.764791, long: -81.712275, air_temp: 15.0\n",
+      "url 5: https://hpfx.collab.science.gc.ca/20250506/WXO-DD/observations/swob-ml/partners/on-firewx/20250506/sou/2025-05-06-2209-on-mnrf-affes-sou-sou-AUTO-swob.xml\n",
+      "station: South Bay Mine, tc_id: , lat: 51.1148, long: -92.6822, air_temp: 14.8\n",
+      "url 6: https://hpfx.collab.science.gc.ca/20250506/WXO-DD/observations/swob-ml/partners/qc-pom/20250506/pom_quai_m3/2025-05-06-2205-pom-quai-quai_m3-AUTO-swob.xml\n",
+      "station: Quai M-3, tc_id: , lat: 45.497011, long: -73.545, air_temp: 21.1\n",
+      "url 7: https://hpfx.collab.science.gc.ca/20250506/WXO-DD/observations/swob-ml/20250506/CVYD/2025-05-06-2209-CVYD-AUTO-minute-swob.xml\n",
+      "station: SMITHERS AIRPORT AUTO, tc_id: VYD, lat: 54.824275, long: -127.189264, air_temp: 12.3\n",
+      "url 8: https://hpfx.collab.science.gc.ca/20250506/WXO-DD/observations/swob-ml/partners/qc-pom/20250506/pom_quai_55/2025-05-06-2205-pom-quai-quai_55-AUTO-swob.xml\n",
+      "station: Quai 55, tc_id: , lat: 45.55865, long: -73.525269, air_temp: 22\n",
+      "url 9: https://hpfx.collab.science.gc.ca/20250506/WXO-DD/observations/swob-ml/partners/yt-firewx/20250506/yt-dcs-wfm_tc/2025-05-06-2200-yt-dcs-wfm-tc-tc-AUTO-swob.xml\n",
+      "station: Tom Creek, tc_id: , lat: 60.278084, long: -128.982302, air_temp: 9.8\n",
+      "url 10: https://hpfx.collab.science.gc.ca/20250506/WXO-DD/observations/swob-ml/20250506/CWWP/2025-05-06-2209-CWWP-AUTO-minute-swob.xml\n",
+      "station: WASAGAMING, tc_id: WWP, lat: 50.655184, long: -99.941732, air_temp: 11.2\n"
+     ]
+    },
+    {
+     "name": "stderr",
+     "output_type": "stream",
+     "text": [
+      "2025-05-06 18:10:26,382 [INFO] sarracenia.moth.amqp getCleanUp deleting queue q_anonymous_fractal_xml_SomethingHelpfulToYou\n"
+     ]
+    },
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "obtained 10 product temperatures\n"
+     ]
+    }
+   ],
+   "source": [
+    "import urllib.request\n",
+    "import xml.etree.ElementTree as ET\n",
+    "\n",
+    "#create a separate quueue to avoid getting bulletins from the above subscription.\n",
+    "queue['name']= 'q_anonymous_' + socket.getfqdn() + '_xml_' + options['queueShare']\n",
+    "\n",
+    "options['subscriptions'] = sarracenia.config.subscription.Subscriptions( [ { \n",
+    "   'broker': options['broker'],\n",
+    "   'bindings': [ { 'exchange':'xpublic', 'prefix': ['v02','post'], 'sub':[ '*', 'WXO-DD', 'observations', 'swob-ml', '#'] } ],\n",
+    "   'queue' : queue\n",
+    "      } ] )\n",
+    "\n",
+    "\n",
+    "h = sarracenia.moth.Moth.subFactory(options)\n",
+    "\n",
+    "count=0\n",
+    "\n",
+    "while count < 10:\n",
+    "    messages = h.newMessages()  #get all received Messages, upto options['batch'] of them at a time.\n",
+    "    for m in messages:\n",
+    "        dataUrl = m['baseUrl']\n",
+    "        if 'retPath' in m:\n",
+    "           dataUrl += m['retPath']\n",
+    "        else:\n",
+    "           dataUrl += m['relPath']\n",
+    "\n",
+    "        print(\"url %d: %s\" % (count,dataUrl) )\n",
+    "        with urllib.request.urlopen( dataUrl ) as f:\n",
+    "            vxml = f.read().decode('utf-8')\n",
+    "            xmlData = ET.fromstring(vxml)\n",
+    "\n",
+    "            stn_name=''\n",
+    "            tc_id=''\n",
+    "            lat=''\n",
+    "            lon=''\n",
+    "            air_temp=''\n",
+    "\n",
+    "            for i in xmlData.iter():\n",
+    "                name = i.get('name')\n",
+    "                if name == 'stn_nam' :\n",
+    "                   stn_name= i.get('value')\n",
+    "                elif name == 'tc_id' :\n",
+    "                   tc_id = i.get('value')\n",
+    "                elif name == 'lat' :\n",
+    "                   lat =  i.get('value')\n",
+    "                elif name == 'long' :\n",
+    "                   lon  = i.get('value')\n",
+    "                elif name == 'air_temp' :\n",
+    "                   air_temp = i.get('value')\n",
+    "\n",
+    "            print( 'station: %s, tc_id: %s, lat: %s, long: %s, air_temp: %s' %\n",
+    "                   ( stn_name, tc_id, lat, lon, air_temp  ))\n",
+    "        h.ack(m)\n",
+    "        count += 1\n",
+    "        if count > 10:\n",
+    "            break\n",
+    "    time.sleep(1)\n",
+    "\n",
+    "h.cleanup() # remove server-side queue defined by Factory.\n",
+    "h.close()\n",
+    "print(\"obtained 10 product temperatures\")\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "neither-radius",
+   "metadata": {},
+   "source": [
+    "## Downloading Data with Python\n",
+    "\n",
+    "You can use the urllib python library to download data, and then parse it.\n",
+    "In this example, the data is an XML structure per message downloaded and read into memory.\n",
+    "Some station data is then printed.\n",
+    "\n",
+    "This works well with urllib for hyper-test transport protocol resources, but other resources may be announced using other protocols, such as sftp, or ftp.  The python code will need to be expanded to deal\n",
+    "with other protocols, as well as error conditions, such as temporary failures.\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "id": "blank-emphasis",
+   "metadata": {},
+   "source": [
+    "## Conclusion\n",
+    "\n",
+    "[Sarracenia.moth.amqp](../Reference/code.rst#module-sarracenia.moth) is the lightest-weight way to add consumption of Sarracenia messages to your existing python stack. You explicitly ask for new messages when ready to use them. \n",
+    "\n",
+    "Things this type of integration does not provide:\n",
+    "\n",
+    "* data retrieval:  you need your own code to download the corresponding data, \n",
+    "\n",
+    "* error recovery: if there are transient errors, then you need to build error recovery code (for recovering partial downloads.)\n",
+    "\n",
+    "* async/event/data driven: a way to say \"do this every time you get a file\" ... define callbacks to be run when a particular event happens, rather than the sequential flow shown above.\n",
+    "\n",
+    "The sarracenia.flow class, provides downloads, error recovery, and an asynchronous API using the sarracenia.flowcb (flowCallback) class.\n",
+    "\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "id": "senior-dressing",
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "celltoolbar": "Slideshow",
+  "kernelspec": {
+   "display_name": "Python 3 (ipykernel)",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.12.3"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}

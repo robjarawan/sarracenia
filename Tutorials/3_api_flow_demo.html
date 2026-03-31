@@ -1,0 +1,392 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>flow API Example &mdash; Sarracenia 3.02.00rc3 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+      <link rel="stylesheet" type="text/css" href="../_static/nbsphinx-code-cells.css?v=2aa19091" />
+
+  
+    <link rel="shortcut icon" href="../_static/sarra_horror_culture_favicon.png"/>
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=dfbb1914"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+      <script>window.MathJax = {"tex": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true}, "options": {"ignoreHtmlClass": "tex2jax_ignore|mathjax_ignore|document", "processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+      <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="A first Example using Sarracenia Moth API" href="4_api_moth_sub_demo.html" />
+    <link rel="prev" title="Customize File handling with Callbacks." href="2_CLI_with_flowcb_demo.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            Sarracenia
+              <img src="../_static/sarra_horror_culture_w200.png" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../Explanation/Overview.html">Overview</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="index.html">Tutorials</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="1_CLI_introduction.html">Downloading Using the Command Line</a></li>
+<li class="toctree-l2"><a class="reference internal" href="2_CLI_with_flowcb_demo.html">Customize File handling with Callbacks.</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">flow API Example</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#starters.">starters.</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cfg.download">cfg.download</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cfg.batch">cfg.batch</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cfg.messageCountMax">cfg.messageCountMax</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cfg.masks">cfg.masks</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cfg.no,-cfg.pid_filename">cfg.no, cfg.pid_filename</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#Conclusion:">Conclusion:</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="4_api_moth_sub_demo.html">A first Example using Sarracenia Moth API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="5_api_moth_post_demo.html">Posting from Python Code</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Install.html">MetPX-Sarracenia Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Setup_a_local_subscriber.html">Server Admin: A Local Subscriber</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Setup_a_remote_subscriber.html">How to setup a Remote Subscriber</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Migrate_v2_to_sr3.html">Migrating from Sarracenia v2 to sr3</a></li>
+<li class="toctree-l2"><a class="reference internal" href="Windows.html">Windows user manual</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../How2Guides/index.html">HOWTOS</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../Explanation/index.html">Explanation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../Reference/index.html">Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../Contribution/index.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../api-documentation.html">API Documentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../fr/index.html">En français</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Sarracenia</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="index.html">Tutorials</a></li>
+      <li class="breadcrumb-item active">flow API Example</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/Tutorials/3_api_flow_demo.ipynb.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="flow-API-Example">
+<h1>flow API Example<a class="headerlink" href="#flow-API-Example" title="Link to this heading"></a></h1>
+<p>The <a class="reference internal" href="../Reference/code.html#module-sarracenia.flow"><span class="std std-ref">sarracenia.flow class</span></a> provides built in accept/reject filtering for messages, supports built-in downloading in several protocols, retries on failure, and allows the creation of callbacks, to customize processing.</p>
+<p>You need to provide a configuration as an argument when instantiating a subscriber. the <em>sarracenia.config.no_file_config()</em> returns an empty configuration without consulting any of the sr3 configuration file tree.</p>
+<p>After adding the modifications needed to the configuration, the subscriber is then initiated and run.</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[1]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="o">!</span>mkdir<span class="w"> </span>/tmp/flow_demo
+</pre></div>
+</div>
+</div>
+<p>make a directory for the files you are going to download. the root of the directory tree to must exist.</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[1]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span> <span class="nn">copy</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">sarracenia.config</span>
+<span class="kn">from</span> <span class="nn">sarracenia.flow.subscribe</span> <span class="kn">import</span> <span class="n">Subscribe</span>
+<span class="kn">import</span> <span class="nn">sarracenia.flowcb</span>
+<span class="kn">import</span> <span class="nn">sarracenia.config.credentials</span>
+<span class="kn">import</span> <span class="nn">socket</span>
+
+<span class="n">cfg</span> <span class="o">=</span> <span class="n">sarracenia</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">no_file_config</span><span class="p">()</span>
+
+<span class="n">cfg</span><span class="o">.</span><span class="n">broker</span> <span class="o">=</span> <span class="n">sarracenia</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">credentials</span><span class="o">.</span><span class="n">Credential</span><span class="p">(</span><span class="s1">&#39;amqps://anonymous:anonymous@hpfx.collab.science.gc.ca&#39;</span><span class="p">)</span>
+<span class="n">cfg</span><span class="o">.</span><span class="n">topicPrefix</span> <span class="o">=</span> <span class="p">[</span> <span class="s1">&#39;v02&#39;</span><span class="p">,</span> <span class="s1">&#39;post&#39;</span><span class="p">]</span>
+<span class="n">cfg</span><span class="o">.</span><span class="n">component</span> <span class="o">=</span> <span class="s1">&#39;subscribe&#39;</span>
+<span class="n">cfg</span><span class="o">.</span><span class="n">config</span> <span class="o">=</span> <span class="s1">&#39;flow_demo&#39;</span>
+<span class="n">cfg</span><span class="o">.</span><span class="n">action</span> <span class="o">=</span> <span class="s1">&#39;start&#39;</span>
+<span class="n">bindings</span> <span class="o">=</span> <span class="p">[</span> <span class="p">{</span><span class="s1">&#39;exchange&#39;</span><span class="p">:</span><span class="s1">&#39;xpublic&#39;</span><span class="p">,</span> <span class="s1">&#39;prefix&#39;</span><span class="p">:[</span><span class="s1">&#39;v02&#39;</span><span class="p">,</span> <span class="s1">&#39;post&#39;</span><span class="p">],</span>
+                <span class="s1">&#39;sub&#39;</span><span class="p">:[</span><span class="s1">&#39;*.WXO-DD.observations.swob-ml.#&#39;</span><span class="p">]}]</span>
+<span class="n">cfg</span><span class="o">.</span><span class="n">queueName</span> <span class="o">=</span> <span class="s1">&#39;q_$</span><span class="si">{BROKER_USER}</span><span class="s1">_$</span><span class="si">{HOSTNAME}</span><span class="s1">_$</span><span class="si">{QUEUESHARE}</span><span class="s1">&#39;</span>
+<span class="n">cfg</span><span class="o">.</span><span class="n">download</span><span class="o">=</span><span class="kc">True</span>
+<span class="n">cfg</span><span class="o">.</span><span class="n">batch</span><span class="o">=</span><span class="mi">1</span>
+<span class="n">cfg</span><span class="o">.</span><span class="n">messageCountMax</span><span class="o">=</span><span class="mi">5</span>
+<span class="n">cfg</span><span class="o">.</span><span class="n">queueShare</span> <span class="o">=</span> <span class="s1">&#39;SomethingSessionfulToYou&#39;</span>
+
+
+<span class="n">cfg</span><span class="o">.</span><span class="n">settings</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;sarracenia.moth.amqp.AMQP&#39;</span><span class="p">:</span> <span class="p">{</span> <span class="s1">&#39;logLevel&#39;</span><span class="p">:</span><span class="s1">&#39;debug&#39;</span> <span class="p">}</span> <span class="p">}</span>
+
+<span class="c1"># Note: queue name must start with q_&lt;username&gt; because server is configured to deny anything else.</span>
+<span class="c1">#</span>
+
+<span class="n">queue</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;name&#39;</span><span class="p">:</span> <span class="s1">&#39;q_anonymous_&#39;</span> <span class="o">+</span> <span class="n">socket</span><span class="o">.</span><span class="n">getfqdn</span><span class="p">()</span> <span class="o">+</span> <span class="s1">&#39;_&#39;</span> <span class="o">+</span> <span class="n">cfg</span><span class="o">.</span><span class="n">queueShare</span><span class="p">,</span>
+         <span class="s1">&#39;template&#39;</span><span class="p">:</span> <span class="n">cfg</span><span class="o">.</span><span class="n">queueName</span><span class="p">,</span>
+         <span class="s1">&#39;auto_delete&#39;</span> <span class="p">:</span> <span class="kc">False</span><span class="p">,</span> <span class="c1"># AO == amqp only</span>
+         <span class="s1">&#39;durable&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span> <span class="c1"># AO: queue should survive broker reboots</span>
+         <span class="s1">&#39;expire&#39;</span><span class="p">:</span> <span class="mi">600</span><span class="p">,</span>  <span class="c1"># MO: seconds until queue with no consumers disappears.</span>
+         <span class="s1">&#39;prefetch&#39;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span>
+         <span class="s1">&#39;qos&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+         <span class="s1">&#39;tlsRigour&#39;</span><span class="p">:</span> <span class="s1">&#39;normal&#39;</span><span class="p">,</span>
+         <span class="s1">&#39;bind&#39;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>  <span class="c1"># whether to bind queues/subscriptions</span>
+         <span class="s1">&#39;declare&#39;</span><span class="p">:</span> <span class="kc">True</span> <span class="c1"># whether to declare queues/subscriptions</span>
+       <span class="p">}</span>
+
+
+<span class="n">cfg</span><span class="o">.</span><span class="n">subscriptions</span> <span class="o">=</span> <span class="n">sarracenia</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">subscription</span><span class="o">.</span><span class="n">Subscriptions</span><span class="p">(</span> <span class="p">[</span> <span class="p">{</span>
+   <span class="s1">&#39;broker&#39;</span><span class="p">:</span> <span class="n">cfg</span><span class="o">.</span><span class="n">broker</span><span class="p">,</span>
+   <span class="s1">&#39;bindings&#39;</span><span class="p">:</span> <span class="n">bindings</span><span class="p">,</span>
+   <span class="s1">&#39;queue&#39;</span> <span class="p">:</span> <span class="n">queue</span>
+      <span class="p">}</span> <span class="p">]</span> <span class="p">)</span>
+
+
+<span class="c1"># set the instance number for the flow class.</span>
+<span class="n">cfg</span><span class="o">.</span><span class="n">no</span><span class="o">=</span><span class="mi">0</span>
+
+<span class="c1"># set other settings based on provided ones, so it is ready for use.</span>
+
+<span class="n">cfg</span><span class="o">.</span><span class="n">finalize</span><span class="p">()</span>
+
+<span class="c1"># accept/reject patterns:</span>
+<span class="n">pattern</span><span class="o">=</span><span class="s2">&quot;.*&quot;</span>
+
+<span class="c1">#              to_match, write_to_dir, DESTFN, regex_to_match, accept=True,mirror,strip, pstrip,flatten</span>
+<span class="n">cfg</span><span class="o">.</span><span class="n">masks</span> <span class="o">=</span> <span class="p">[(</span><span class="n">pattern</span><span class="p">,</span> <span class="s2">&quot;/tmp/flow_demo&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">pattern</span><span class="p">),</span> <span class="kc">True</span><span class="p">,</span> <span class="kc">False</span><span class="p">,</span> <span class="kc">False</span><span class="p">,</span> <span class="kc">False</span><span class="p">,</span> <span class="s1">&#39;/&#39;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)]</span>
+<br/><br/><br/></pre></div>
+</div>
+</div>
+<section id="starters.">
+<h2>starters.<a class="headerlink" href="#starters." title="Link to this heading"></a></h2>
+<p>the broker, bindings, and queueName settings are explained in the moth notebook.</p>
+</section>
+<section id="cfg.download">
+<h2>cfg.download<a class="headerlink" href="#cfg.download" title="Link to this heading"></a></h2>
+<p>Whether you want the flow to download the files corresponding to the messages. If true, then it will download the files.</p>
+</section>
+<section id="cfg.batch">
+<h2>cfg.batch<a class="headerlink" href="#cfg.batch" title="Link to this heading"></a></h2>
+<p>Messages are processed in batches. The number of messages to retrieve per call to newMessages() is limited by the <em>batch</em> setting. We set it to 1 here so you can see each file being downloaded immediately when the corresponding message is downloaded. you can leave this blank, and it defaults to 25. Settings are matter of taste and use case.</p>
+</section>
+<section id="cfg.messageCountMax">
+<h2>cfg.messageCountMax<a class="headerlink" href="#cfg.messageCountMax" title="Link to this heading"></a></h2>
+<p>Normally we just leave this setting at it’s default (0) which has no effect on processing. for demonstration purposes, we limit the number of messages the subscriber will process with this setting. after <em>messageCountMax</em> messages have been received, stop processing.</p>
+</section>
+<section id="cfg.masks">
+<h2>cfg.masks<a class="headerlink" href="#cfg.masks" title="Link to this heading"></a></h2>
+<p>masks are a compiled form of accept/reject directives. a relPath is compared to the regex in the mask. If the regex matches, and accept is true, then the message is accepted for further processing. If the regex matches, but accept is False, then processing of the message is stopped (the message is rejected.)</p>
+<p>masks are a tuple. the meaning can be looked up in the sr3(1) man page.</p>
+<ul class="simple">
+<li><p>pattern_string, the input regular expression string, to be compiled by re routines.</p></li>
+<li><p>directory, where to put the files downloaded (root of the tree, when mirroring)</p></li>
+<li><p>fn, transformation of filename to do. None is the 99% use case.</p></li>
+<li><p>regex, compiled regex version of the pattern_string</p></li>
+<li><p>accept(True/False), if pattern matches then accept message for further processing.</p></li>
+<li><p>mirror(True/False), when downloading build a complete tree to mirror the source, or just dump in directory</p></li>
+<li><p>strip(True/False), modify the relpath by stripping entries from the left.</p></li>
+<li><p>pstrip(True/False), strip entries based on patterm</p></li>
+<li><p>flatten(char … ‘/’ means do not flatten.) )</p></li>
+</ul>
+</section>
+<section id="cfg.no,-cfg.pid_filename">
+<h2>cfg.no, cfg.pid_filename<a class="headerlink" href="#cfg.no,-cfg.pid_filename" title="Link to this heading"></a></h2>
+<p>These settings are needed because they would ordinarily be set by the sarracenia.instance class which is normally used to launch flows. They allow setting up of run-time paths for retry_queues, and statefiles, to remember settings if need be between runs.</p>
+<div class="nbinput docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[2]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">subscriber</span> <span class="o">=</span> <span class="n">sarracenia</span><span class="o">.</span><span class="n">flow</span><span class="o">.</span><span class="n">subscribe</span><span class="o">.</span><span class="n">Subscribe</span><span class="p">(</span> <span class="n">cfg</span> <span class="p">)</span>
+
+<span class="n">subscriber</span><span class="o">.</span><span class="n">run</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="nboutput nblast docutils container">
+<div class="prompt empty docutils container">
+</div>
+<div class="output_area stderr docutils container">
+<div class="highlight"><pre>
+2025-05-06 18:02:26,977 [DEBUG] sarracenia.flowcb.retry __init__ sr_retry __init__
+2025-05-06 18:02:26,978 [DEBUG] sarracenia.config add_option 0 retry_driver declared as type:&lt;class &#39;str&#39;&gt; value:disk
+2025-05-06 18:02:26,978 [DEBUG] sarracenia.config add_option 0 retry_refilter declared as type:&lt;class &#39;bool&#39;&gt; value:False
+2025-05-06 18:02:26,979 [DEBUG] sarracenia.config add_option 0 MemoryMax declared as type:&lt;class &#39;int&#39;&gt; value:0
+2025-05-06 18:02:26,979 [DEBUG] sarracenia.config add_option 0 MemoryBaseLineFile declared as type:&lt;class &#39;int&#39;&gt; value:100
+2025-05-06 18:02:26,980 [DEBUG] sarracenia.config add_option 0 MemoryMultiplier declared as type:&lt;class &#39;int&#39;&gt; value:3
+2025-05-06 18:02:26,981 [DEBUG] sarracenia.config add_option 0 logEvents declared as type:&lt;class &#39;set&#39;&gt; value:{&#39;after_post&#39;, &#39;after_work&#39;, &#39;on_housekeeping&#39;, &#39;after_accept&#39;}
+2025-05-06 18:02:26,981 [DEBUG] sarracenia.config add_option 0 logMessageDump declared as type:&lt;class &#39;bool&#39;&gt; value:False
+2025-05-06 18:02:26,981 [DEBUG] sarracenia.config check_undeclared_options missing defaults: {&#39;feeder&#39;, &#39;count&#39;, &#39;exchangeSuffix&#39;, &#39;realpathFilter&#39;, &#39;report_exchange&#39;, &#39;post_topic&#39;, &#39;identity&#39;, &#39;MemoryBaseLineFile&#39;, &#39;sendTo&#39;, &#39;cluster&#39;, &#39;exchangeSplit&#39;, &#39;nodupe_basis&#39;, &#39;accelWgetCommand&#39;, &#39;notify_only&#39;, &#39;post_on_start&#39;, &#39;reconnect&#39;, &#39;pollUrl&#39;, &#39;header&#39;, &#39;post_exchange&#39;, &#39;httpsSafeQuote&#39;, &#39;inplace&#39;, &#39;save&#39;, &#39;logMessageDump&#39;, &#39;blockSize&#39;, &#39;post_exchangeSuffix&#39;, &#39;follow_symlinks&#39;, &#39;topic&#39;, &#39;post_exchangeSplit&#39;, &#39;force_polling&#39;, &#39;accelCpCommand&#39;, &#39;accelScpCommand&#39;, &#39;retry_driver&#39;, &#39;restore&#39;, &#39;MemoryMax&#39;, &#39;MemoryMultiplier&#39;}
+2025-05-06 18:02:26,982 [DEBUG] sarracenia.diskqueue __init__  work_retry_00 __init__
+2025-05-06 18:02:27,069 [DEBUG] amqp _on_start Start from server, version: 0.9, properties: {&#39;capabilities&#39;: {&#39;publisher_confirms&#39;: True, &#39;exchange_exchange_bindings&#39;: True, &#39;basic.nack&#39;: True, &#39;consumer_cancel_notify&#39;: True, &#39;connection.blocked&#39;: True, &#39;consumer_priorities&#39;: True, &#39;authentication_failure_close&#39;: True, &#39;per_consumer_qos&#39;: True, &#39;direct_reply_to&#39;: True}, &#39;cluster_name&#39;: &#39;rabbit@hpfx2.collab.science.gc.ca&#39;, &#39;copyright&#39;: &#39;Copyright (c) 2007-2022 VMware, Inc. or its affiliates.&#39;, &#39;information&#39;: &#39;Licensed under the MPL 2.0. Website: https://rabbitmq.com&#39;, &#39;platform&#39;: &#39;Erlang/OTP 24.2.1&#39;, &#39;product&#39;: &#39;RabbitMQ&#39;, &#39;version&#39;: &#39;3.9.27&#39;}, mechanisms: [b&#39;AMQPLAIN&#39;, b&#39;PLAIN&#39;], locales: [&#39;en_US&#39;]
+2025-05-06 18:02:27,097 [DEBUG] amqp __init__ using channel_id: 1
+2025-05-06 18:02:27,113 [DEBUG] amqp _on_open_ok Channel open
+2025-05-06 18:02:27,113 [DEBUG] amqp __init__ using channel_id: 2
+2025-05-06 18:02:27,148 [DEBUG] amqp _on_open_ok Channel open
+2025-05-06 18:02:27,180 [INFO] sarracenia.moth.amqp _queueDeclare queue declared q_anonymous_fractal_SomethingSessionfulToYou (as: amqps://anonymous@hpfx.collab.science.gc.ca), (messages waiting: 3352)
+2025-05-06 18:02:27,181 [INFO] sarracenia.moth.amqp getSetup binding q_anonymous_fractal_SomethingSessionfulToYou with v02.post.*.WXO-DD.observations.swob-ml.# to xpublic (as: amqps://anonymous@hpfx.collab.science.gc.ca)
+2025-05-06 18:02:27,195 [DEBUG] sarracenia.moth.amqp getSetup getSetup ... Done!
+2025-05-06 18:02:27,209 [DEBUG] sarracenia.moth.amqp getNewMessage new msg: {&#39;_format&#39;: &#39;v02&#39;, &#39;_deleteOnPost&#39;: {&#39;local_offset&#39;, &#39;exchange&#39;, &#39;_format&#39;, &#39;topic&#39;, &#39;ack_id&#39;, &#39;subtopic&#39;, &#39;subscription_index&#39;}, &#39;sundew_extension&#39;: &#39;DMS:WXO_RENAMED_SWOB2:MSC:XML::20250506215340&#39;, &#39;from_cluster&#39;: &#39;DDSR.CMC&#39;, &#39;to_clusters&#39;: &#39;ALL&#39;, &#39;filename&#39;: &#39;msg_ddsr-WXO-DD_cc20303d99e2f4ff798884b0d54d5a10:DMS:WXO_RENAMED_SWOB2:MSC:XML::20250506215340&#39;, &#39;source&#39;: &#39;anonymous&#39;, &#39;mtime&#39;: &#39;20250506T215341.256&#39;, &#39;atime&#39;: &#39;20250506T215341.256&#39;, &#39;pubTime&#39;: &#39;20250506T215341.256&#39;, &#39;baseUrl&#39;: &#39;https://hpfx.collab.science.gc.ca&#39;, &#39;relPath&#39;: &#39;/20250506/WXO-DD/observations/swob-ml/20250506/CWLJ/2025-05-06-2153-CWLJ-AUTO-minute-swob.xml&#39;, &#39;subtopic&#39;: [&#39;20250506&#39;, &#39;WXO-DD&#39;, &#39;observations&#39;, &#39;swob-ml&#39;, &#39;20250506&#39;, &#39;CWLJ&#39;], &#39;identity&#39;: {&#39;method&#39;: &#39;md5&#39;, &#39;value&#39;: &#39;+dZT5kYQnEU0d18cD8antw==&#39;}, &#39;size&#39;: 9430, &#39;exchange&#39;: &#39;xpublic&#39;, &#39;topic&#39;: &#39;v02.post.20250506.WXO-DD.observations.swob-ml.20250506.CWLJ&#39;, &#39;ack_id&#39;: {&#39;delivery_tag&#39;: 1, &#39;channel_id&#39;: 2, &#39;connection_id&#39;: &#39;4f89e0df-234f-4c89-a935-104ef4ab6193_sub&#39;, &#39;broker&#39;: &#39;hpfx.collab.science.gc.ca:5671//&#39;}, &#39;local_offset&#39;: 0, &#39;subscription_index&#39;: 0}
+2025-05-06 18:02:27,210 [INFO] sarracenia.flowcb.log after_accept accepted: (lag: 525.95 )  exchange: xpublic subtopic: 20250506.WXO-DD.observations.swob-ml.20250506.CWLJ a file with baseUrl: https://hpfx.collab.science.gc.ca relPath: /20250506/WXO-DD/observations/swob-ml/20250506/CWLJ/2025-05-06-2153-CWLJ-AUTO-minute-swob.xml sundew_extension: DMS:WXO_RENAMED_SWOB2:MSC:XML::20250506215340 id: +dZT5kY size: 9430
+2025-05-06 18:02:27,211 [DEBUG] sarracenia.config add_option 0 accelWgetCommand declared as type:&lt;class &#39;str&#39;&gt; value:/usr/bin/wget %s -o - -O %d
+2025-05-06 18:02:27,211 [DEBUG] sarracenia.config add_option 0 httpsSafeQuote declared as type:&lt;class &#39;str&#39;&gt; value:/+
+2025-05-06 18:02:27,313 [INFO] sarracenia.flowcb.log after_work downloaded ok: /tmp/flow_demo/2025-05-06-2153-CWLJ-AUTO-minute-swob.xml
+2025-05-06 18:02:27,335 [DEBUG] sarracenia.moth.amqp getNewMessage new msg: {&#39;_format&#39;: &#39;v02&#39;, &#39;_deleteOnPost&#39;: {&#39;local_offset&#39;, &#39;exchange&#39;, &#39;_format&#39;, &#39;topic&#39;, &#39;ack_id&#39;, &#39;subtopic&#39;, &#39;subscription_index&#39;}, &#39;sundew_extension&#39;: &#39;DMS:WXO_RENAMED_SWOB2:MSC:XML::20250506215342&#39;, &#39;from_cluster&#39;: &#39;DDSR.CMC&#39;, &#39;to_clusters&#39;: &#39;ALL&#39;, &#39;filename&#39;: &#39;msg_ddsr-WXO-DD_897c298a738b12b599ce0a0a41d4de56:DMS:WXO_RENAMED_SWOB2:MSC:XML::20250506215342&#39;, &#39;source&#39;: &#39;anonymous&#39;, &#39;mtime&#39;: &#39;20250506T215343.267&#39;, &#39;atime&#39;: &#39;20250506T215343.267&#39;, &#39;pubTime&#39;: &#39;20250506T215343.267&#39;, &#39;baseUrl&#39;: &#39;https://hpfx.collab.science.gc.ca&#39;, &#39;relPath&#39;: &#39;/20250506/WXO-DD/observations/swob-ml/20250506/CWIK/2025-05-06-2153-CWIK-AUTO-minute-swob.xml&#39;, &#39;subtopic&#39;: [&#39;20250506&#39;, &#39;WXO-DD&#39;, &#39;observations&#39;, &#39;swob-ml&#39;, &#39;20250506&#39;, &#39;CWIK&#39;], &#39;identity&#39;: {&#39;method&#39;: &#39;md5&#39;, &#39;value&#39;: &#39;QzRgaoONkPYgW1AQISJomQ==&#39;}, &#39;size&#39;: 9347, &#39;exchange&#39;: &#39;xpublic&#39;, &#39;topic&#39;: &#39;v02.post.20250506.WXO-DD.observations.swob-ml.20250506.CWIK&#39;, &#39;ack_id&#39;: {&#39;delivery_tag&#39;: 2, &#39;channel_id&#39;: 2, &#39;connection_id&#39;: &#39;4f89e0df-234f-4c89-a935-104ef4ab6193_sub&#39;, &#39;broker&#39;: &#39;hpfx.collab.science.gc.ca:5671//&#39;}, &#39;local_offset&#39;: 0, &#39;subscription_index&#39;: 0}
+2025-05-06 18:02:27,335 [INFO] sarracenia.flowcb.log after_accept accepted: (lag: 524.07 )  exchange: xpublic subtopic: 20250506.WXO-DD.observations.swob-ml.20250506.CWIK a file with baseUrl: https://hpfx.collab.science.gc.ca relPath: /20250506/WXO-DD/observations/swob-ml/20250506/CWIK/2025-05-06-2153-CWIK-AUTO-minute-swob.xml sundew_extension: DMS:WXO_RENAMED_SWOB2:MSC:XML::20250506215342 id: QzRgaoO size: 9347
+2025-05-06 18:02:27,406 [INFO] sarracenia.flowcb.log after_work downloaded ok: /tmp/flow_demo/2025-05-06-2153-CWIK-AUTO-minute-swob.xml
+2025-05-06 18:02:27,434 [DEBUG] sarracenia.moth.amqp getNewMessage new msg: {&#39;_format&#39;: &#39;v02&#39;, &#39;_deleteOnPost&#39;: {&#39;local_offset&#39;, &#39;exchange&#39;, &#39;_format&#39;, &#39;topic&#39;, &#39;ack_id&#39;, &#39;subtopic&#39;, &#39;subscription_index&#39;}, &#39;sundew_extension&#39;: &#39;DMS:WXO_RENAMED_SWOB2:MSC:XML::20250506215342&#39;, &#39;from_cluster&#39;: &#39;DDSR.CMC&#39;, &#39;to_clusters&#39;: &#39;ALL&#39;, &#39;filename&#39;: &#39;msg_ddsr-WXO-DD_da727c53f038b5b7da3f448e45d9dda9:DMS:WXO_RENAMED_SWOB2:MSC:XML::20250506215342&#39;, &#39;source&#39;: &#39;anonymous&#39;, &#39;mtime&#39;: &#39;20250506T215343.268&#39;, &#39;atime&#39;: &#39;20250506T215343.268&#39;, &#39;pubTime&#39;: &#39;20250506T215343.268&#39;, &#39;baseUrl&#39;: &#39;https://hpfx.collab.science.gc.ca&#39;, &#39;relPath&#39;: &#39;/20250506/WXO-DD/observations/swob-ml/20250506/CWNQ/2025-05-06-2153-CWNQ-AUTO-minute-swob.xml&#39;, &#39;subtopic&#39;: [&#39;20250506&#39;, &#39;WXO-DD&#39;, &#39;observations&#39;, &#39;swob-ml&#39;, &#39;20250506&#39;, &#39;CWNQ&#39;], &#39;identity&#39;: {&#39;method&#39;: &#39;md5&#39;, &#39;value&#39;: &#39;5utOLH9nlj8BbYcXpMIkKg==&#39;}, &#39;size&#39;: 8283, &#39;exchange&#39;: &#39;xpublic&#39;, &#39;topic&#39;: &#39;v02.post.20250506.WXO-DD.observations.swob-ml.20250506.CWNQ&#39;, &#39;ack_id&#39;: {&#39;delivery_tag&#39;: 3, &#39;channel_id&#39;: 2, &#39;connection_id&#39;: &#39;4f89e0df-234f-4c89-a935-104ef4ab6193_sub&#39;, &#39;broker&#39;: &#39;hpfx.collab.science.gc.ca:5671//&#39;}, &#39;local_offset&#39;: 0, &#39;subscription_index&#39;: 0}
+2025-05-06 18:02:27,435 [INFO] sarracenia.flowcb.log after_accept accepted: (lag: 524.17 )  exchange: xpublic subtopic: 20250506.WXO-DD.observations.swob-ml.20250506.CWNQ a file with baseUrl: https://hpfx.collab.science.gc.ca relPath: /20250506/WXO-DD/observations/swob-ml/20250506/CWNQ/2025-05-06-2153-CWNQ-AUTO-minute-swob.xml sundew_extension: DMS:WXO_RENAMED_SWOB2:MSC:XML::20250506215342 id: 5utOLH9 size: 8283
+2025-05-06 18:02:27,506 [INFO] sarracenia.flowcb.log after_work downloaded ok: /tmp/flow_demo/2025-05-06-2153-CWNQ-AUTO-minute-swob.xml
+2025-05-06 18:02:27,525 [DEBUG] sarracenia.moth.amqp getNewMessage new msg: {&#39;_format&#39;: &#39;v02&#39;, &#39;_deleteOnPost&#39;: {&#39;local_offset&#39;, &#39;exchange&#39;, &#39;_format&#39;, &#39;topic&#39;, &#39;ack_id&#39;, &#39;subtopic&#39;, &#39;subscription_index&#39;}, &#39;sundew_extension&#39;: &#39;DMS:WXO_RENAMED_SWOB2:MSC:XML::20250506215341&#39;, &#39;from_cluster&#39;: &#39;DDSR.CMC&#39;, &#39;to_clusters&#39;: &#39;ALL&#39;, &#39;filename&#39;: &#39;msg_ddsr-WXO-DD_f26ee15b5d44070ce75ed65271414b09:DMS:WXO_RENAMED_SWOB2:MSC:XML::20250506215341&#39;, &#39;source&#39;: &#39;anonymous&#39;, &#39;mtime&#39;: &#39;20250506T215343.428&#39;, &#39;atime&#39;: &#39;20250506T215343.428&#39;, &#39;pubTime&#39;: &#39;20250506T215343.428&#39;, &#39;baseUrl&#39;: &#39;https://hpfx.collab.science.gc.ca&#39;, &#39;relPath&#39;: &#39;/20250506/WXO-DD/observations/swob-ml/20250506/CWUT/2025-05-06-2153-CWUT-AUTO-minute-swob.xml&#39;, &#39;subtopic&#39;: [&#39;20250506&#39;, &#39;WXO-DD&#39;, &#39;observations&#39;, &#39;swob-ml&#39;, &#39;20250506&#39;, &#39;CWUT&#39;], &#39;identity&#39;: {&#39;method&#39;: &#39;md5&#39;, &#39;value&#39;: &#39;KQWbBWIE3OMSaCVjhGE79Q==&#39;}, &#39;size&#39;: 9818, &#39;exchange&#39;: &#39;xpublic&#39;, &#39;topic&#39;: &#39;v02.post.20250506.WXO-DD.observations.swob-ml.20250506.CWUT&#39;, &#39;ack_id&#39;: {&#39;delivery_tag&#39;: 4, &#39;channel_id&#39;: 2, &#39;connection_id&#39;: &#39;4f89e0df-234f-4c89-a935-104ef4ab6193_sub&#39;, &#39;broker&#39;: &#39;hpfx.collab.science.gc.ca:5671//&#39;}, &#39;local_offset&#39;: 0, &#39;subscription_index&#39;: 0}
+2025-05-06 18:02:27,525 [INFO] sarracenia.flowcb.log after_accept accepted: (lag: 524.10 )  exchange: xpublic subtopic: 20250506.WXO-DD.observations.swob-ml.20250506.CWUT a file with baseUrl: https://hpfx.collab.science.gc.ca relPath: /20250506/WXO-DD/observations/swob-ml/20250506/CWUT/2025-05-06-2153-CWUT-AUTO-minute-swob.xml sundew_extension: DMS:WXO_RENAMED_SWOB2:MSC:XML::20250506215341 id: KQWbBWI size: 9818
+2025-05-06 18:02:27,597 [INFO] sarracenia.flowcb.log after_work downloaded ok: /tmp/flow_demo/2025-05-06-2153-CWUT-AUTO-minute-swob.xml
+2025-05-06 18:02:27,615 [DEBUG] sarracenia.moth.amqp getNewMessage new msg: {&#39;_format&#39;: &#39;v02&#39;, &#39;_deleteOnPost&#39;: {&#39;local_offset&#39;, &#39;exchange&#39;, &#39;_format&#39;, &#39;topic&#39;, &#39;ack_id&#39;, &#39;subtopic&#39;, &#39;subscription_index&#39;}, &#39;sundew_extension&#39;: &#39;DMS:WXO_RENAMED_SWOB2:MSC:XML::20250506215344&#39;, &#39;from_cluster&#39;: &#39;DDSR.CMC&#39;, &#39;to_clusters&#39;: &#39;ALL&#39;, &#39;filename&#39;: &#39;msg_ddsr-WXO-DD_8a0d2cf8c42ad6bb00358762e7a798fe:DMS:WXO_RENAMED_SWOB2:MSC:XML::20250506215344&#39;, &#39;source&#39;: &#39;anonymous&#39;, &#39;mtime&#39;: &#39;20250506T215346.150&#39;, &#39;atime&#39;: &#39;20250506T215346.150&#39;, &#39;pubTime&#39;: &#39;20250506T215346.150&#39;, &#39;baseUrl&#39;: &#39;https://hpfx.collab.science.gc.ca&#39;, &#39;relPath&#39;: &#39;/20250506/WXO-DD/observations/swob-ml/20250506/CZEL/2025-05-06-2153-CZEL-AUTO-minute-swob.xml&#39;, &#39;subtopic&#39;: [&#39;20250506&#39;, &#39;WXO-DD&#39;, &#39;observations&#39;, &#39;swob-ml&#39;, &#39;20250506&#39;, &#39;CZEL&#39;], &#39;identity&#39;: {&#39;method&#39;: &#39;md5&#39;, &#39;value&#39;: &#39;34Av1QcKERddo5tIUU9hcA==&#39;}, &#39;size&#39;: 10268, &#39;exchange&#39;: &#39;xpublic&#39;, &#39;topic&#39;: &#39;v02.post.20250506.WXO-DD.observations.swob-ml.20250506.CZEL&#39;, &#39;ack_id&#39;: {&#39;delivery_tag&#39;: 5, &#39;channel_id&#39;: 2, &#39;connection_id&#39;: &#39;4f89e0df-234f-4c89-a935-104ef4ab6193_sub&#39;, &#39;broker&#39;: &#39;hpfx.collab.science.gc.ca:5671//&#39;}, &#39;local_offset&#39;: 0, &#39;subscription_index&#39;: 0}
+2025-05-06 18:02:27,616 [INFO] sarracenia.flowcb.log after_accept accepted: (lag: 521.47 )  exchange: xpublic subtopic: 20250506.WXO-DD.observations.swob-ml.20250506.CZEL a file with baseUrl: https://hpfx.collab.science.gc.ca relPath: /20250506/WXO-DD/observations/swob-ml/20250506/CZEL/2025-05-06-2153-CZEL-AUTO-minute-swob.xml sundew_extension: DMS:WXO_RENAMED_SWOB2:MSC:XML::20250506215344 id: 34Av1Qc size: 10268
+2025-05-06 18:02:27,676 [INFO] sarracenia.flowcb.log after_work downloaded ok: /tmp/flow_demo/2025-05-06-2153-CZEL-AUTO-minute-swob.xml
+2025-05-06 18:02:27,677 [INFO] sarracenia.flow run 6 messages processed &gt; messageCountMax 5
+2025-05-06 18:02:27,677 [INFO] sarracenia.flow please_stop asked to stop
+2025-05-06 18:02:27,677 [INFO] sarracenia.moth please_stop asked to stop
+2025-05-06 18:02:27,677 [INFO] sarracenia.flow _runHousekeeping on_housekeeping pid: 414972 subscribe/flow_demo instance: 0
+2025-05-06 18:02:27,678 [INFO] sarracenia.flowcb.gather.message on_housekeeping from amqps://anonymous@hpfx.collab.science.gc.ca messages: good: 5 bad: 0 bytes: 730Bytes average: 146Bytes
+2025-05-06 18:02:27,679 [INFO] sarracenia.flowcb.housekeeping.resources on_housekeeping Current cpu_times: user=0.69 system=0.15
+2025-05-06 18:02:27,679 [INFO] sarracenia.flowcb.housekeeping.resources on_housekeeping Current mem usage: 820.9MiB, accumulating count (5 or 5/100 so far) before self-setting threshold
+2025-05-06 18:02:27,679 [INFO] sarracenia.flowcb.log stats version: 3.00.59rc1, started: now, last_housekeeping:  0.7 seconds ago
+2025-05-06 18:02:27,679 [INFO] sarracenia.flowcb.log stats messages received: 5, accepted: 5, rejected: 0   rate accepted: 100.0% or 7.2 m/s
+2025-05-06 18:02:27,680 [INFO] sarracenia.flowcb.log stats files transferred: 5 bytes: 46.0KiB rate: 66.0KiB/sec
+2025-05-06 18:02:27,680 [INFO] sarracenia.flowcb.log stats lag: average: 523.95, maximum: 525.95
+2025-05-06 18:02:27,680 [INFO] sarracenia.flow run 6 messages processed &gt; messageCountMax 5
+2025-05-06 18:02:27,681 [INFO] sarracenia.flow please_stop asked to stop
+2025-05-06 18:02:27,681 [INFO] sarracenia.moth please_stop asked to stop
+2025-05-06 18:02:27,681 [INFO] sarracenia.flow _runHousekeeping on_housekeeping pid: 414972 subscribe/flow_demo instance: 0
+2025-05-06 18:02:27,681 [INFO] sarracenia.flowcb.gather.message on_housekeeping from amqps://anonymous@hpfx.collab.science.gc.ca messages: good: 0 bad: 0 bytes: 0Bytes average: 0Bytes
+2025-05-06 18:02:27,682 [INFO] sarracenia.flowcb.housekeeping.resources on_housekeeping Current cpu_times: user=0.69 system=0.15
+2025-05-06 18:02:27,683 [INFO] sarracenia.flowcb.housekeeping.resources on_housekeeping Current mem usage: 820.9MiB, accumulating count (5 or 5/100 so far) before self-setting threshold
+2025-05-06 18:02:27,683 [INFO] sarracenia.flowcb.log stats version: 3.00.59rc1, started: now, last_housekeeping:  0.0 seconds ago
+2025-05-06 18:02:27,683 [INFO] sarracenia.flowcb.log stats messages received: 0, accepted: 0, rejected: 0   rate accepted: 0.0% or 0.0 m/s
+2025-05-06 18:02:27,683 [INFO] sarracenia.flowcb.log stats files transferred: 0 bytes: 0Bytes rate: 0Bytes/sec
+2025-05-06 18:02:27,700 [DEBUG] amqp collect Closed channel #1
+2025-05-06 18:02:27,701 [DEBUG] amqp collect Closed channel #2
+2025-05-06 18:02:27,701 [INFO] sarracenia.flow close flow/close completed cleanly pid: 414972 subscribe/flow_demo instance: 0
+2024-01-29 15:00:38,025 [INFO] sarracenia.flowcb.log after_accept accepted: (lag: 8201.25 ) https://hpfx.collab.science.gc.ca /20240129/WXO-DD/observations/swob-ml/20240129/CVBB/2024-01-29-1743-CVBB-AUTO-minute-swob.xml
+2024-01-29 15:00:38,025 [INFO] sarracenia.flow do_download missing destination directories, makedirs: /tmp/flow_demo/20240129/WXO-DD/observations/swob-ml/20240129/CVBB
+2024-01-29 15:00:38,114 [INFO] sarracenia.flowcb.log after_work downloaded ok: /tmp/flow_demo/20240129/WXO-DD/observations/swob-ml/20240129/CVBB/2024-01-29-1743-CVBB-AUTO-minute-swob.xml
+2024-01-29 15:00:38,139 [DEBUG] sarracenia.moth.amqp getNewMessage new msg: {&#39;_format&#39;: &#39;v02&#39;, &#39;_deleteOnPost&#39;: {&#39;source&#39;, &#39;_format&#39;, &#39;exchange&#39;, &#39;subtopic&#39;, &#39;local_offset&#39;, &#39;ack_id&#39;}, &#39;sundew_extension&#39;: &#39;DMS:WXO_RENAMED_SWOB2:MSC:XML::20240129174356&#39;, &#39;from_cluster&#39;: &#39;DDSR.CMC&#39;, &#39;to_clusters&#39;: &#39;ALL&#39;, &#39;filename&#39;: &#39;msg_ddsr-WXO-DD_8067f0a1a5b4711ab86e481341b26590:DMS:WXO_RENAMED_SWOB2:MSC:XML::20240129174356&#39;, &#39;source&#39;: &#39;anonymous&#39;, &#39;mtime&#39;: &#39;20240129T174357.781&#39;, &#39;atime&#39;: &#39;20240129T174357.781&#39;, &#39;pubTime&#39;: &#39;20240129T174357.781&#39;, &#39;baseUrl&#39;: &#39;https://hpfx.collab.science.gc.ca&#39;, &#39;relPath&#39;: &#39;/20240129/WXO-DD/observations/swob-ml/20240129/CWLJ/2024-01-29-1743-CWLJ-AUTO-minute-swob.xml&#39;, &#39;subtopic&#39;: [&#39;20240129&#39;, &#39;WXO-DD&#39;, &#39;observations&#39;, &#39;swob-ml&#39;, &#39;20240129&#39;, &#39;CWLJ&#39;], &#39;identity&#39;: {&#39;method&#39;: &#39;md5&#39;, &#39;value&#39;: &#39;uDrzi9GLNnhEgGvSylHu9g==&#39;}, &#39;size&#39;: 9428, &#39;exchange&#39;: &#39;xpublic&#39;, &#39;ack_id&#39;: 4, &#39;local_offset&#39;: 0}
+2024-01-29 15:00:38,140 [INFO] sarracenia.flowcb.log after_accept accepted: (lag: 8200.36 ) https://hpfx.collab.science.gc.ca /20240129/WXO-DD/observations/swob-ml/20240129/CWLJ/2024-01-29-1743-CWLJ-AUTO-minute-swob.xml
+2024-01-29 15:00:38,141 [INFO] sarracenia.flow do_download missing destination directories, makedirs: /tmp/flow_demo/20240129/WXO-DD/observations/swob-ml/20240129/CWLJ
+2024-01-29 15:00:38,242 [INFO] sarracenia.flowcb.log after_work downloaded ok: /tmp/flow_demo/20240129/WXO-DD/observations/swob-ml/20240129/CWLJ/2024-01-29-1743-CWLJ-AUTO-minute-swob.xml
+2024-01-29 15:00:38,262 [DEBUG] sarracenia.moth.amqp getNewMessage new msg: {&#39;_format&#39;: &#39;v02&#39;, &#39;_deleteOnPost&#39;: {&#39;source&#39;, &#39;_format&#39;, &#39;exchange&#39;, &#39;subtopic&#39;, &#39;local_offset&#39;, &#39;ack_id&#39;}, &#39;sundew_extension&#39;: &#39;DMS:WXO_RENAMED_SWOB2:MSC:XML::20240129174355&#39;, &#39;from_cluster&#39;: &#39;DDSR.CMC&#39;, &#39;to_clusters&#39;: &#39;ALL&#39;, &#39;filename&#39;: &#39;msg_ddsr-WXO-DD_6f203257347d4f090abc1d7557864cb7:DMS:WXO_RENAMED_SWOB2:MSC:XML::20240129174355&#39;, &#39;source&#39;: &#39;anonymous&#39;, &#39;mtime&#39;: &#39;20240129T174357.267&#39;, &#39;atime&#39;: &#39;20240129T174357.267&#39;, &#39;pubTime&#39;: &#39;20240129T174357.267&#39;, &#39;baseUrl&#39;: &#39;https://hpfx.collab.science.gc.ca&#39;, &#39;relPath&#39;: &#39;/20240129/WXO-DD/observations/swob-ml/20240129/CAMS/2024-01-29-1743-CAMS-AUTO-minute-swob.xml&#39;, &#39;subtopic&#39;: [&#39;20240129&#39;, &#39;WXO-DD&#39;, &#39;observations&#39;, &#39;swob-ml&#39;, &#39;20240129&#39;, &#39;CAMS&#39;], &#39;identity&#39;: {&#39;method&#39;: &#39;md5&#39;, &#39;value&#39;: &#39;H/h4jm6MTzMSp1oCeDS1jA==&#39;}, &#39;size&#39;: 9826, &#39;exchange&#39;: &#39;xpublic&#39;, &#39;ack_id&#39;: 5, &#39;local_offset&#39;: 0}
+2024-01-29 15:00:38,263 [INFO] sarracenia.flowcb.log after_accept accepted: (lag: 8201.00 ) https://hpfx.collab.science.gc.ca /20240129/WXO-DD/observations/swob-ml/20240129/CAMS/2024-01-29-1743-CAMS-AUTO-minute-swob.xml
+2024-01-29 15:00:38,263 [INFO] sarracenia.flow do_download missing destination directories, makedirs: /tmp/flow_demo/20240129/WXO-DD/observations/swob-ml/20240129/CAMS
+2024-01-29 15:00:38,356 [INFO] sarracenia.flowcb.log after_work downloaded ok: /tmp/flow_demo/20240129/WXO-DD/observations/swob-ml/20240129/CAMS/2024-01-29-1743-CAMS-AUTO-minute-swob.xml
+2024-01-29 15:00:38,357 [INFO] sarracenia.flow please_stop ok, telling 4 callbacks about it.
+2024-01-29 15:00:38,357 [INFO] sarracenia.flow run starting last pass (without gather) through loop for cleanup.
+2024-01-29 15:00:38,358 [INFO] sarracenia.flow please_stop ok, telling 4 callbacks about it.
+2024-01-29 15:00:38,359 [INFO] sarracenia.flow run on_housekeeping pid: 3567801 subscribe/flow_demo instance: 0
+2024-01-29 15:00:38,359 [INFO] sarracenia.flowcb.gather.message on_housekeeping messages: good: 5 bad: 0 bytes: 730 Bytes average: 146 Bytes
+2024-01-29 15:00:38,359 [INFO] sarracenia.flowcb.retry on_housekeeping on_housekeeping
+2024-01-29 15:00:38,360 [INFO] sarracenia.diskqueue on_housekeeping work_retry_00 on_housekeeping
+2024-01-29 15:00:38,361 [INFO] sarracenia.diskqueue on_housekeeping No retry in list
+2024-01-29 15:00:38,361 [INFO] sarracenia.diskqueue on_housekeeping on_housekeeping elapse 0.000548
+2024-01-29 15:00:38,361 [INFO] sarracenia.diskqueue on_housekeeping post_retry_000 on_housekeeping
+2024-01-29 15:00:38,362 [INFO] sarracenia.diskqueue on_housekeeping No retry in list
+2024-01-29 15:00:38,362 [INFO] sarracenia.diskqueue on_housekeeping on_housekeeping elapse 0.000741
+2024-01-29 15:00:38,363 [INFO] sarracenia.flowcb.housekeeping.resources on_housekeeping Current Memory cpu_times: user=0.76 system=0.17
+2024-01-29 15:00:38,363 [INFO] sarracenia.flowcb.housekeeping.resources on_housekeeping Current mem usage: 790.2 MiB, accumulating count (5 or 5/100 so far) before self-setting threshold
+2024-01-29 15:00:38,364 [INFO] sarracenia.flowcb.log stats version: 3.00.51rc6, started: a second ago, last_housekeeping:  1.0 seconds ago
+2024-01-29 15:00:38,364 [INFO] sarracenia.flowcb.log stats messages received: 5, accepted: 5, rejected: 0   rate accepted: 100.0% or 5.0 m/s
+2024-01-29 15:00:38,364 [INFO] sarracenia.flowcb.log stats files transferred: 5 bytes: 45.3 KiB rate: 45.1 KiB/sec
+2024-01-29 15:00:38,365 [INFO] sarracenia.flowcb.log stats lag: average: 8200.95, maximum: 8201.25
+2024-01-29 15:00:38,366 [INFO] sarracenia.flowcb.log on_housekeeping housekeeping
+2024-01-29 15:00:38,366 [INFO] sarracenia.flow run clean stop from run loop
+2024-01-29 15:00:38,385 [DEBUG] amqp collect Closed channel #1
+2024-01-29 15:00:38,386 [DEBUG] amqp collect Closed channel #2
+2024-01-29 15:00:38,386 [INFO] sarracenia.flowcb.gather.message on_stop closing
+2024-01-29 15:00:38,386 [INFO] sarracenia.flow close flow/close completed cleanly pid: 3567801 subscribe/flow_demo instance: 0
+</pre></div></div>
+</div>
+</section>
+<section id="Conclusion:">
+<h2>Conclusion:<a class="headerlink" href="#Conclusion:" title="Link to this heading"></a></h2>
+<p>With the sarracenia.flow class, an async method of operation is supported, it can be customized using flowcb (flow callback) class to introduce specific processing at specific times. It is just like invocation of a single instance from the command line, except all configuration is done within python by setting cfg fields, rather than using the configuration language.</p>
+<p>What is lost vs. using the command line tool:</p>
+<ul class="simple">
+<li><p>ability to use the configuration language (slightly simpler than assigning values to the cfg object)</p></li>
+<li><p>easy running of multiple instances,</p></li>
+<li><p>co-ordinated monitoring of the instances (restarts on failure, and a programmable number of subscribers started per configuration.)</p></li>
+<li><p>log file management.</p></li>
+</ul>
+<p>The command line tool provides those additional features.</p>
+<div class="nbinput nblast docutils container">
+<div class="prompt highlight-none notranslate"><div class="highlight"><pre><span></span>[ ]:
+</pre></div>
+</div>
+<div class="input_area highlight-ipython3 notranslate"><div class="highlight"><pre><span></span>
+</pre></div>
+</div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="2_CLI_with_flowcb_demo.html" class="btn btn-neutral float-left" title="Customize File handling with Callbacks." accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="4_api_moth_sub_demo.html" class="btn btn-neutral float-right" title="A first Example using Sarracenia Moth API" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2022, Shared Services Canada, Government of Canada, GPLv2.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

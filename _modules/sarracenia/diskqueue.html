@@ -5,7 +5,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>sarracenia.diskqueue &mdash; Sarracenia 3.02.00rc3 documentation</title>
+  <title>sarracenia.diskqueue &mdash; Sarracenia 3.03.00rc1 documentation</title>
       <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=80d5e7a1" />
       <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
 
@@ -13,7 +13,7 @@
     <link rel="shortcut icon" href="../../_static/sarra_horror_culture_favicon.png"/>
       <script src="../../_static/jquery.js?v=5d32c60e"></script>
       <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="../../_static/documentation_options.js?v=dfbb1914"></script>
+      <script src="../../_static/documentation_options.js?v=5c7e2fa9"></script>
       <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
@@ -322,6 +322,10 @@
             <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Error information: &quot;</span><span class="p">,</span> <span class="n">exc_info</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
             <span class="k">return</span> <span class="kc">None</span>
 
+        <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">msg</span><span class="p">)</span> <span class="ow">is</span> <span class="ow">not</span> <span class="n">sarracenia</span><span class="o">.</span><span class="n">Message</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;invalid line in retry file (not decoded as sarracenia.Message): </span><span class="si">{</span><span class="n">line</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">None</span>
+
         <span class="k">return</span> <span class="n">msg</span>
 
     <span class="k">def</span> <span class="nf">msgToJSON</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">):</span>
@@ -465,20 +469,20 @@
             <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s1">&#39;DEBUG </span><span class="si">%s</span><span class="s1"> open read&#39;</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span>
             <span class="n">fp</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span>
 
-        <span class="n">line</span> <span class="o">=</span> <span class="n">fp</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">line</span><span class="p">:</span>
-            <span class="k">try</span><span class="p">:</span>
-                <span class="n">fp</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-            <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-                <span class="k">pass</span>
-            <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">line</span> <span class="o">=</span> <span class="n">fp</span><span class="o">.</span><span class="n">readline</span><span class="p">()</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">line</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">fp</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+                    <span class="k">pass</span>
+                <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span>
 
-        <span class="n">msg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">msgFromJSON</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
-        <span class="c1"># a corrupted line : go to the next</span>
-        <span class="k">if</span> <span class="n">msg</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span> <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">msg_get_from_file</span><span class="p">(</span><span class="n">fp</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span>
+            <span class="n">msg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">msgFromJSON</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">msg</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">fp</span><span class="p">,</span> <span class="n">msg</span></div>
 
-        <span class="k">return</span> <span class="n">fp</span><span class="p">,</span> <span class="n">msg</span></div>
-
+            <span class="c1"># corrupted line, skip to next</span>
 
 <div class="viewcode-block" id="DiskQueue.on_housekeeping">
 <a class="viewcode-back" href="../../Reference/code.html#sarracenia.diskqueue.DiskQueue.on_housekeeping">[docs]</a>

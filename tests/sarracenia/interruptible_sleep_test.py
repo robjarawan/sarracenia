@@ -62,3 +62,39 @@ def test_interruptible_sleep():
 
 
 
+
+
+def test_sleep_zero_time():
+    st = SleepThing()
+    result = interruptible_sleep(0, st, nap_time=0.1)
+    assert result == False
+
+def test_sleep_negative_time():
+    st = SleepThing()
+    result = interruptible_sleep(-1.0, st, nap_time=0.1)
+    assert result == False
+
+def test_sleep_missing_stop_flag():
+    obj = type('Obj', (), {})()
+    result = interruptible_sleep(0.05, obj, stop_flag_name='nonexistent', nap_time=0.02)
+    assert result == False
+
+def test_sleep_custom_flag_name_true():
+    obj = type('Obj', (), {'my_flag': True})()
+    result = interruptible_sleep(1.0, obj, stop_flag_name='my_flag', nap_time=0.01)
+    assert result == True
+
+def test_sleep_nap_larger_than_sleep():
+    import time
+    st = SleepThing()
+    start = time.time()
+    result = interruptible_sleep(0.05, st, nap_time=10.0)
+    elapsed = time.time() - start
+    assert result == False
+    assert elapsed < 1.0
+
+def test_sleep_pre_interrupted():
+    st = SleepThing()
+    st._stop_requested = True
+    result = interruptible_sleep(10.0, st, nap_time=0.01)
+    assert result == True

@@ -63,7 +63,7 @@ class Delete(FlowCB):
                 files_to_delete.append(message['delete_source'])
 
             if self.o.delete_destination:
-                self.dirsOfDeletion |= set(message['new_dir'])
+                self.dirsOfDeletion |= set([message['new_dir']])
                 files_to_delete.append(
                     f"{message['new_dir']}/{message['new_file']}")
 

@@ -47,3 +47,35 @@ def test_after_accept(caplog):
     assert len(worklist.incoming) == 1
     assert 'SomethingGood' in worklist.incoming[0]
     assert 'atime' not in worklist.incoming[0]
+
+
+def test_after_accept_removes_all_legacy_fields():
+    """All 7 legacy fields should be removed."""
+    trim = Trim_legacy_fields(sarracenia.config.default_config())
+    worklist = make_worklist()
+    worklist.incoming = [make_message()]
+    trim.after_accept(worklist)
+    for field in ['atime', 'filename', 'from_cluster', 'mtime', 'source', 'sundew_extension', 'to_clusters']:
+        assert field not in worklist.incoming[0]
+
+
+def test_after_accept_ignores_missing_fields():
+    """Messages without some legacy fields should not cause errors."""
+    trim = Trim_legacy_fields(sarracenia.config.default_config())
+    worklist = make_worklist()
+    m = SR3Message()
+    m['SomethingGood'] = 'keep_this'
+    m['atime'] = 'remove_this'
+    # Only 'atime' present, others missing
+    worklist.incoming = [m]
+    trim.after_accept(worklist)
+    assert 'atime' not in worklist.incoming[0]
+    assert worklist.incoming[0]['SomethingGood'] == 'keep_this'
+
+
+def test_after_accept_empty_worklist():
+    """Empty worklist should not cause errors."""
+    trim = Trim_legacy_fields(sarracenia.config.default_config())
+    worklist = make_worklist()
+    trim.after_accept(worklist)
+    assert len(worklist.incoming) == 0

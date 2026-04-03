@@ -40,3 +40,24 @@ def test_after_accept():
     assert len(worklist.incoming) == 2
     assert bool(re.match(r"/foo/bar/\d{2}", worklist.incoming[0]['new_dir'])) == True
     assert bool(re.match(r"/foo/bar/\d{2}/NewFile.txt", worklist.incoming[1]['new_file'])) == True
+
+
+def test_after_accept_empty_worklist():
+    """Empty worklist should not cause errors."""
+    hourtree = HourTree(sarracenia.config.default_config())
+    worklist = make_worklist()
+    hourtree.after_accept(worklist)
+    assert len(worklist.incoming) == 0
+
+
+def test_after_accept_inserts_hour_into_nested_path():
+    """Hour should be inserted into deeply nested file paths."""
+    hourtree = HourTree(sarracenia.config.default_config())
+    worklist = make_worklist()
+    msg = make_message()
+    msg['new_dir'] = '/data/archive'
+    msg['new_file'] = '/data/archive/report.csv'
+    worklist.incoming = [msg]
+    hourtree.after_accept(worklist)
+    assert bool(re.match(r"/data/archive/\d{2}", worklist.incoming[0]['new_dir']))
+    assert bool(re.match(r"/data/archive/\d{2}/report.csv", worklist.incoming[0]['new_file']))

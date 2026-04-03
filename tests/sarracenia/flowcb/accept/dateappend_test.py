@@ -59,7 +59,7 @@ def test_after_accept_retry_appends_again():
     assert bool(re.match(r'./SK/s0000684_f.xml_20221022080652_\d{14}', worklist.incoming[0]['new_file'])) == True
 
 
-def test_after_accept_does_not_duplicate_current_timestamp(mocker):
+def test_after_accept_does_not_duplicate_current_timestamp():
     """If the filename already ends with the current timestamp, no duplication."""
     dateappend = Dateappend(sarracenia.config.default_config())
 

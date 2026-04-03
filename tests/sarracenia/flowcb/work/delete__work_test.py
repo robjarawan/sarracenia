@@ -33,6 +33,11 @@ def make_worklist():
 
 def test___init__():
     options = make_options()
+    # Remove baseDir/post_baseDir so they don't pollute sacredDirs
+    if hasattr(options, 'baseDir'):
+        delattr(options, 'baseDir')
+    if hasattr(options, 'post_baseDir'):
+        delattr(options, 'post_baseDir')
     deletecb = Delete(options)
     assert deletecb is not None
     assert options.delete_source is True

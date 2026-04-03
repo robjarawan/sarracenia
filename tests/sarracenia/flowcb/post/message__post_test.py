@@ -48,12 +48,16 @@ def make_options_with_publishers():
 
 def test___init___no_post_broker():
     options = make_options()
-    # Ensure post_broker is not set
-    if hasattr(options, 'post_broker'):
-        delattr(options, 'post_broker')
+    # Config objects don't allow delattr, so use a simple namespace without post_broker
+    from sarracenia.flowcb.post.message import Message
+    simple_opts = types.SimpleNamespace(
+        logLevel='DEBUG',
+        logFormat='%(message)s',
+        logStdout=True,
+    )
+    simple_opts.add_option = lambda *a, **k: None
     with patch('sarracenia.moth.Moth.pubFactory') as mock_factory:
-        from sarracenia.flowcb.post.message import Message
-        msg_cb = Message(options)
+        msg_cb = Message(simple_opts)
         mock_factory.assert_not_called()
         assert not hasattr(msg_cb, 'posters')
 

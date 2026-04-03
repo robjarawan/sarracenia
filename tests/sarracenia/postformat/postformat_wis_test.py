@@ -102,11 +102,13 @@ class Test_importMine:
 
 class Test_exportMine:
     def _make_body(self, **overrides):
-        body = sarracenia.Message()
-        body['pubTime'] = '20231214T151049'
-        body['baseUrl'] = 'https://example.com'
-        body['relPath'] = '/data/file.grib2'
-        body['size'] = 4096
+        """Create a plain dict body suitable for JSON serialization in exportMine."""
+        body = {
+            'pubTime': '20231214T151049',
+            'baseUrl': 'https://example.com',
+            'relPath': '/data/file.grib2',
+            'size': 4096,
+        }
         body.update(overrides)
         return body
 

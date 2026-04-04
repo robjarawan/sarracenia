@@ -43,7 +43,7 @@ class S3bucket(FlowCB):
 
         super().__init__(options,logger)
 
-        self.minutetracker = datetime.datetime.utcnow() + datetime.timedelta(minutes=-70)
+        self.minutetracker = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=-70)
         
         logger.info( f" url: {self.o.pollUrl} " )
         ppu = urllib.parse.urlparse(self.o.pollUrl)

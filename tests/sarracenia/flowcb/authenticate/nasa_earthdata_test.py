@@ -45,7 +45,7 @@ def test_init_no_trailing_slash():
 def test_token_expires_setter_string():
     ned = _build_instance()
     ned._token_expires = "07/23/2025"
-    assert ned._token_expires == datetime.datetime(2025, 7, 23)
+    assert ned._token_expires == datetime.datetime(2025, 7, 23, tzinfo=datetime.timezone.utc)
 
 
 def test_token_expires_setter_datetime():
@@ -57,7 +57,7 @@ def test_token_expires_setter_datetime():
 
 def test_token_expiry_str_format():
     ned = _build_instance()
-    ned._token_expires = datetime.datetime(2025, 1, 15)
+    ned._token_expires = datetime.datetime(2025, 1, 15, tzinfo=datetime.timezone.utc)
     assert ned._token_expiry_str() == "2025-01-15"
 
 
@@ -71,7 +71,7 @@ def test_token_expiry_str_none():
 def test_get_token_returns_cached_when_not_expired():
     ned = _build_instance()
     ned._token = 'cached_token_12345'
-    ned._token_expires = datetime.datetime.utcnow() + datetime.timedelta(days=30)
+    ned._token_expires = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=30)
     result = ned.get_token()
     assert result == 'cached_token_12345'
 
@@ -79,7 +79,7 @@ def test_get_token_returns_cached_when_not_expired():
 def test_get_token_clears_expired_token():
     ned = _build_instance()
     ned._token = 'old_token_12345'
-    ned._token_expires = datetime.datetime.utcnow() - datetime.timedelta(days=1)
+    ned._token_expires = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=1)
 
     with patch.object(ned, 'get_earthdata_token', return_value=False):
         result = ned.get_token()
@@ -104,7 +104,7 @@ def test_get_earthdata_token_success():
 
     assert result is True
     assert ned._token == 'existing_tok_99'
-    assert ned._token_expires == datetime.datetime(2025, 12, 31)
+    assert ned._token_expires == datetime.datetime(2025, 12, 31, tzinfo=datetime.timezone.utc)
 
 
 def test_get_earthdata_token_empty_creates_new():
@@ -157,7 +157,7 @@ def test_create_earthdata_token_success():
 
     assert result is True
     assert ned._token == 'created_token_abc'
-    assert ned._token_expires == datetime.datetime(2026, 6, 1)
+    assert ned._token_expires == datetime.datetime(2026, 6, 1, tzinfo=datetime.timezone.utc)
 
 
 def test_create_earthdata_token_http_error():

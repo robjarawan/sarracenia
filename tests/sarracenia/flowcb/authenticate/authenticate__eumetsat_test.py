@@ -58,7 +58,7 @@ def test_get_token_success():
 def test_get_token_cached():
     eum = _build_instance()
     eum._api_token = 'cached_eumetsat_tok'
-    eum._token_expiry_time = datetime.datetime.utcnow() + datetime.timedelta(minutes=30)
+    eum._token_expiry_time = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=30)
 
     result = eum.get_token()
     assert result == 'cached_eumetsat_tok'
@@ -67,7 +67,7 @@ def test_get_token_cached():
 def test_get_token_expired():
     eum = _build_instance()
     eum._api_token = 'expired_tok'
-    eum._token_expiry_time = datetime.datetime.utcnow() - datetime.timedelta(minutes=1)
+    eum._token_expiry_time = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=1)
 
     eum.o.credentials = MagicMock()
     eum.o.credentials.get = MagicMock(return_value=_mock_cred())

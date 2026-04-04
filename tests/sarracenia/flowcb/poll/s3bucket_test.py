@@ -97,9 +97,9 @@ class Test_S3bucket_init:
         assert isinstance(inst.minutetracker, datetime.datetime)
 
     def test_init_minutetracker_is_past(self):
-        before = datetime.datetime.utcnow() + datetime.timedelta(minutes=-75)
+        before = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=-75)
         inst = _make_s3bucket()
-        after = datetime.datetime.utcnow() + datetime.timedelta(minutes=-65)
+        after = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=-65)
         assert before <= inst.minutetracker <= after
 
     def test_init_different_url(self):

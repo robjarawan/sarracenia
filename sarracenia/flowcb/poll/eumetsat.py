@@ -122,7 +122,7 @@ class Eumetsat(sarracenia.flowcb.FlowCB):
 
         # API requires the date and time to retrieve results for. Check the current hour and previous n_hours.
         n_hours = int(self.o.timeNowMinus//3600) + 1
-        t_now = datetime.datetime.utcnow()
+        t_now = datetime.datetime.now(datetime.timezone.utc)
         # Build strings YYYY/mm/dd/times/hh. now - 1 hour = t_str[1], now - 2 hours = t_str[2], ...
         t_str = []
         for i in range(0, n_hours):

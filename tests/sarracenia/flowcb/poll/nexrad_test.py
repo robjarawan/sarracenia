@@ -110,10 +110,10 @@ class Test_Nexrad_init:
         assert hasattr(inst.o, "poll_nexrad_day")
 
     def test_init_minutetracker_is_past(self):
-        before = datetime.datetime.utcnow() + datetime.timedelta(minutes=-8)
+        before = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=-8)
         inst = _make_nexrad()
-        after = datetime.datetime.utcnow() + datetime.timedelta(minutes=-6)
-        # minutetracker should be roughly utcnow() − 7 min
+        after = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=-6)
+        # minutetracker should be roughly now(utc) − 7 min
         assert before <= inst.minutetracker <= after
 
 

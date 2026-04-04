@@ -93,7 +93,7 @@ class Noaa_hydrometric(FlowCB):
             # Water temp request
             resp = urllib.request.urlopen(url).getcode()
             logger.info(f"poll_noaa file posted: {url} %s")
-            mtime = datetime.datetime.utcnow().strftime('%Y%m%d_%H%M')
+            mtime = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d_%H%M')
 
             fname = f'noaa_{mtime}_{site}_WT.csv'
             m = sarracenia.Message.fromFileInfo(fname, self.o)

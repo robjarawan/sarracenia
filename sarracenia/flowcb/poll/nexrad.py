@@ -41,7 +41,7 @@ class Nexrad(FlowCB):
 
         super().__init__(options,logger)
         self.o.add_option('poll_nexrad_day', 'str', "")
-        self.minutetracker = datetime.datetime.utcnow() + datetime.timedelta(
+        self.minutetracker = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(
             minutes=-7)
 
     def poll(self):

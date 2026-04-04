@@ -78,7 +78,7 @@ class Usgs(FlowCB):
 
     def poll(self):
 
-        run_time = datetime.datetime.utcnow().strftime('%Y%m%d_%H%M')
+        run_time = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%d_%H%M')
 
         gathered_messages = []
         if self.o.batch > 1:

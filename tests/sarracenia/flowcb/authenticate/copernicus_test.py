@@ -72,7 +72,7 @@ def test_get_token_success():
 def test_get_token_cached_not_expired():
     cop = _build_instance()
     cop._token = 'cached_tok'
-    cop._token_expires = datetime.datetime.utcnow() + datetime.timedelta(minutes=5)
+    cop._token_expires = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=5)
 
     result = cop.get_token()
     assert result == 'cached_tok'
@@ -81,9 +81,9 @@ def test_get_token_cached_not_expired():
 def test_get_token_expired_refreshes():
     cop = _build_instance()
     cop._token = 'old_tok'
-    cop._token_expires = datetime.datetime.utcnow() - datetime.timedelta(minutes=1)
+    cop._token_expires = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=1)
     cop._refresh = None
-    cop._refresh_expires = datetime.datetime.utcnow() - datetime.timedelta(minutes=1)
+    cop._refresh_expires = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=1)
 
     cop.o.credentials = MagicMock()
     cop.o.credentials.get = MagicMock(return_value=_mock_cred())
@@ -99,9 +99,9 @@ def test_get_token_expired_refreshes():
 def test_get_token_refresh_token_path():
     cop = _build_instance()
     cop._token = 'old_tok'
-    cop._token_expires = datetime.datetime.utcnow() - datetime.timedelta(minutes=1)
+    cop._token_expires = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(minutes=1)
     cop._refresh = 'valid_refresh_tok'
-    cop._refresh_expires = datetime.datetime.utcnow() + datetime.timedelta(minutes=30)
+    cop._refresh_expires = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=30)
 
     mock_resp = _make_token_response(access_token='new_via_refresh')
 

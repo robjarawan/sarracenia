@@ -78,7 +78,7 @@ class Poll(Flow):
             logger.warning( f"nodupe_ttl < fileAgeMax means some files could age out of the cache and be re-ingested ( see : https://github.com/MetPX/sarracenia/issues/904")
 
         if not features['ftppoll']['present']:
-            if hasattr( self.o, 'pollUrl' ) and ( self.o.pollUrl.startswith('ftp') ):
+            if hasattr( self.o, 'pollUrl' ) and self.o.pollUrl is not None and ( self.o.pollUrl.startswith('ftp') ):
                 logger.critical( f"attempting to configure an FTP poll pollUrl={self.o.pollUrl}, but missing python modules: {' '.join(features['ftppoll']['modules_needed'])}" )
 
     def on_start(self):

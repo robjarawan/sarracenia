@@ -4,9 +4,8 @@ Cross-poll-plugin contract / invariant test suite.
 Tests invariants that ALL poll plugins should obey, parametrized across
 the mail, copernicus_marine_s3, and usgs plugins.
 
-Known inconsistency (documented):
-  - mail.poll() returns None on credential failure or connection error,
-    while the other plugins always return a list.
+Contract: all poll() implementations return a list (possibly empty), never None.
+(mail.py was fixed to return [] instead of bare return on errors.)
 """
 
 import pytest
@@ -471,10 +470,10 @@ class Test_Poll_Contract_malformed_input:
             msgs = inst.poll()
         assert msgs == []
 
-    def test_mail_bad_credentials_returns_none(self):
-        """Known return-type inconsistency: mail returns None (not [])
-        when credentials.get fails.  The caller may expect a list."""
+    def test_mail_bad_credentials_returns_empty_list(self):
+        """Contract fix: mail now returns [] (not None)
+        when credentials.get fails, consistent with other poll plugins."""
         inst = _make_mail_instance()
         inst.o.credentials.get.return_value = (False, None)
         result = inst.poll()
-        assert result is None
+        assert result == []

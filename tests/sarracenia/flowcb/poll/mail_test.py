@@ -77,14 +77,13 @@ class Test_Mail_init:
 # ---------------------------------------------------------------------------
 
 class Test_Mail_poll_credentials:
-    def test_credentials_failure_returns_none(self):
-        """When credentials.get returns (False, None) the method returns None
-        (bare return), not an empty list.  This is arguably a bug — the caller
-        may expect a list — but we document the current behaviour."""
+    def test_credentials_failure_returns_empty_list(self):
+        """When credentials.get returns (False, None) the method now returns []
+        (previously returned None — fixed for contract consistency)."""
         inst = _make_instance(scheme="imaps")
         inst.o.credentials.get.return_value = (False, None)
         result = inst.poll()
-        assert result is None
+        assert result == []
 
     def test_credentials_success_sets_protocol(self):
         """Valid credentials should allow the poll to proceed (not return None)."""
@@ -149,13 +148,13 @@ class Test_Mail_poll_imaps:
         assert result == []
         mock_fi.assert_not_called()
 
-    def test_imaps_connection_error_returns_none(self):
+    def test_imaps_connection_error_returns_empty_list(self):
         inst = _make_instance(scheme="imaps")
         with patch("sarracenia.flowcb.poll.mail.imaplib") as mock_imap:
             mock_imap.IMAP4_SSL.side_effect = imaplib.IMAP4.error("conn refused")
             mock_imap.IMAP4 = imaplib.IMAP4  # keep real error class accessible
             result = inst.poll()
-        assert result is None
+        assert result == []
 
     def test_imaps_default_port_993(self):
         inst = _make_instance(scheme="imaps", port=None)
@@ -189,13 +188,13 @@ class Test_Mail_poll_imap:
         mock_conn.close.assert_called_once()
         mock_conn.logout.assert_called_once()
 
-    def test_imap_connection_error_returns_none(self):
+    def test_imap_connection_error_returns_empty_list(self):
         inst = _make_instance(scheme="imap")
         with patch("sarracenia.flowcb.poll.mail.imaplib") as mock_imap:
             mock_imap.IMAP4.side_effect = imaplib.IMAP4.error("refused")
             mock_imap.IMAP4.error = imaplib.IMAP4.error
             result = inst.poll()
-        assert result is None
+        assert result == []
 
     def test_imap_default_port_143(self):
         inst = _make_instance(scheme="imap", port=None)
@@ -227,13 +226,13 @@ class Test_Mail_poll_pops:
         assert len(result) == 1
         mock_conn.quit.assert_called_once()
 
-    def test_pops_connection_error_returns_none(self):
+    def test_pops_connection_error_returns_empty_list(self):
         inst = _make_instance(scheme="pops")
         with patch("sarracenia.flowcb.poll.mail.poplib") as mock_pop:
             mock_pop.POP3_SSL.side_effect = poplib.error_proto("refused")
             mock_pop.error_proto = poplib.error_proto
             result = inst.poll()
-        assert result is None
+        assert result == []
 
     def test_pops_default_port_995(self):
         inst = _make_instance(scheme="pops", port=None)
@@ -264,13 +263,13 @@ class Test_Mail_poll_pop:
         assert len(result) == 1
         mock_conn.quit.assert_called_once()
 
-    def test_pop_connection_error_returns_none(self):
+    def test_pop_connection_error_returns_empty_list(self):
         inst = _make_instance(scheme="pop")
         with patch("sarracenia.flowcb.poll.mail.poplib") as mock_pop:
             mock_pop.POP3.side_effect = poplib.error_proto("refused")
             mock_pop.error_proto = poplib.error_proto
             result = inst.poll()
-        assert result is None
+        assert result == []
 
     def test_pop_default_port_110(self):
         inst = _make_instance(scheme="pop", port=None)

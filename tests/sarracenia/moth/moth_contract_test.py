@@ -101,6 +101,14 @@ PROTOCOL_FACTORIES = [
     pytest.param(_make_amq1, id='amq1'),
 ]
 
+# Concrete implementations only (exclude base class which has stub close())
+CONCRETE_FACTORIES = [
+    pytest.param(_make_amqp, id='amqp'),
+    pytest.param(_make_amqpconsumer, id='amqpconsumer'),
+    pytest.param(_make_mqtt, id='mqtt'),
+    pytest.param(_make_amq1, id='amq1'),
+]
+
 METRIC_COUNTER_KEYS = [
     'disconnectLast', 'disconnectTime', 'disconnectCount',
     'rxByteCount', 'rxGoodCount', 'rxBadCount',
@@ -229,3 +237,50 @@ class Test_Moth_Contract_is_subscriber:
     def test_is_subscriber_true(self, factory):
         inst = factory()
         assert inst.is_subscriber is True
+
+
+class Test_Moth_Contract_close_disconnect:
+    """close() must leave all concrete implementations in consistent disconnected state."""
+
+    @pytest.mark.parametrize('factory', CONCRETE_FACTORIES)
+    def test_close_sets_disconnected(self, factory):
+        """After close(), metrics must show connected=False."""
+        inst = factory()
+        inst.metricsConnect()
+        assert inst.metrics['connected'] is True
+        inst.close()
+        assert inst.metrics['connected'] is False
+
+    @pytest.mark.parametrize('factory', CONCRETE_FACTORIES)
+    def test_close_increments_disconnect_count(self, factory):
+        """close() should increment disconnectCount via metricsDisconnect()."""
+        inst = factory()
+        inst.metricsConnect()
+        inst.close()
+        assert inst.metrics['disconnectCount'] >= 1
+
+    @pytest.mark.parametrize('factory', CONCRETE_FACTORIES)
+    def test_close_idempotent(self, factory):
+        """Calling close() multiple times must not raise or corrupt state."""
+        inst = factory()
+        inst.close()
+        inst.close()
+        assert inst.metrics['connected'] is False
+
+    @pytest.mark.parametrize('factory', CONCRETE_FACTORIES)
+    def test_close_from_initial_state(self, factory):
+        """close() on a never-connected instance should be safe."""
+        inst = factory()
+        assert inst.metrics['connected'] is False
+        inst.close()
+        assert inst.metrics['connected'] is False
+
+    @pytest.mark.parametrize('factory', CONCRETE_FACTORIES)
+    def test_metricsReport_after_close(self, factory):
+        """metricsReport() must work after close()."""
+        inst = factory()
+        inst.metricsConnect()
+        inst.close()
+        result = inst.metricsReport()
+        assert isinstance(result, dict)
+        assert result['connected'] is False

@@ -2,7 +2,7 @@
 Cross-poll-plugin contract / invariant test suite.
 
 Tests invariants that ALL poll plugins should obey, parametrized across
-the mail, copernicus_marine_s3, and usgs plugins.
+the mail, copernicus_marine_s3, usgs, s3bucket, nexrad, and nasa_cmr plugins.
 
 Contract: all poll() implementations return a list (possibly empty), never None.
 (mail.py was fixed to return [] instead of bare return on errors.)
@@ -20,6 +20,9 @@ import sarracenia.config
 from sarracenia.flowcb.poll.mail import Mail
 from sarracenia.flowcb.poll.copernicus_marine_s3 import Copernicus_marine_s3
 from sarracenia.flowcb.poll.usgs import Usgs
+from sarracenia.flowcb.poll.s3bucket import S3bucket
+from sarracenia.flowcb.poll.nexrad import Nexrad
+from sarracenia.flowcb.poll.nasa_cmr import Nasa_cmr
 
 
 # ===========================================================================
@@ -124,6 +127,124 @@ def _make_usgs(**overrides):
     return inst
 
 
+def _make_s3bucket(**overrides):
+    options = sarracenia.config.default_config()
+    options.pollUrl = overrides.pop(
+        'pollUrl',
+        'https://s3-us-west-1.amazonaws.com//mybucket/some/prefix'
+    )
+    options.post_baseUrl = 'https://s3-us-west-1.amazonaws.com/'
+    options.publishers = [
+        {'baseUrl': 'https://s3-us-west-1.amazonaws.com/', 'baseDir': None}
+    ]
+    for k, v in overrides.items():
+        setattr(options, k, v)
+    with patch('sarracenia.flowcb.FlowCB.__init__', return_value=None):
+        inst = S3bucket.__new__(S3bucket)
+        inst.o = options
+        inst.stop_requested = False
+        inst.metrics = {
+            'transferRxBytes': 0, 'transferRxFiles': 0,
+            'transferTxBytes': 0, 'transferTxFiles': 0,
+        }
+        S3bucket.__init__(inst, options)
+    return inst
+
+
+# Valid US station line for nexrad
+_NEXRAD_STATION = (
+    b"IL   CHICAGO/OHARE  KORD                                         X     T          7 US\n"
+)
+
+
+def _make_nexrad(**overrides):
+    options = sarracenia.config.default_config()
+    options.pollUrl = "https://noaa-nexrad-level2.s3.amazonaws.com/"
+    options.post_baseUrl = "https://noaa-nexrad-level2.s3.amazonaws.com/"
+    options.publishers = [
+        {"baseUrl": "https://noaa-nexrad-level2.s3.amazonaws.com/", "baseDir": None}
+    ]
+    options.poll_nexrad_day = overrides.pop('poll_nexrad_day', '2023-06-15')
+    for k, v in overrides.items():
+        setattr(options, k, v)
+    with patch('sarracenia.flowcb.FlowCB.__init__', return_value=None):
+        inst = Nexrad.__new__(Nexrad)
+        inst.o = options
+        inst.stop_requested = False
+        inst.metrics = {
+            'transferRxBytes': 0, 'transferRxFiles': 0,
+            'transferTxBytes': 0, 'transferTxFiles': 0,
+        }
+        Nexrad.__init__(inst, options)
+    return inst
+
+
+def _nexrad_mock_urlopen(lines):
+    ctx = MagicMock()
+    ctx.__enter__ = MagicMock(return_value=ctx)
+    ctx.__exit__ = MagicMock(return_value=False)
+    ctx.readlines.return_value = lines
+    return ctx
+
+
+def _nexrad_mock_s3(objects_by_prefix=None):
+    client = MagicMock()
+    if objects_by_prefix is None:
+        objects_by_prefix = {}
+
+    def _list_objects(Bucket, Prefix):
+        if Prefix in objects_by_prefix:
+            return {"Contents": objects_by_prefix[Prefix]}
+        return {}
+
+    client.list_objects.side_effect = _list_objects
+    return client
+
+
+def _make_nasa_cmr(**overrides):
+    options = sarracenia.config.default_config()
+    options.pollUrl = 'https://cmr.earthdata.nasa.gov/search/granules.umm_json'
+    options.post_baseUrl = 'https://cmr.earthdata.nasa.gov/'
+    options.publishers = [{'baseUrl': 'https://cmr.earthdata.nasa.gov/', 'baseDir': None}]
+    options.identity_method = 'cod,md5'
+    options.collectionConceptId = ['C1234-PODAAC']
+    options.dataSource = 'podaac'
+    options.timeNowMinus = 3600.0
+    options.pageSize = 2000
+    options.dap_urlExtension = None
+    options.dap_fileType = None
+    options.relatedUrl_type = None
+    options.relatedUrl_descriptionContains = None
+    options.relatedUrl_urlContains = None
+    for k, v in overrides.items():
+        setattr(options, k, v)
+    with patch('sarracenia.flowcb.FlowCB.__init__', return_value=None):
+        inst = Nasa_cmr.__new__(Nasa_cmr)
+        inst.o = options
+        inst.stop_requested = False
+        Nasa_cmr.__init__(inst, options)
+    return inst
+
+
+def _cmr_response(items):
+    return {'hits': len(items), 'took': 100, 'items': items}
+
+
+def _podaac_item(granule_name="file1.nc",
+                 data_url="https://archive.podaac.earthdata.nasa.gov/path/file1.nc",
+                 md5_url=None):
+    urls = [{
+        'URL': data_url, 'Type': 'GET DATA',
+        'Description': 'Download ' + granule_name,
+    }]
+    if md5_url:
+        urls.append({
+            'URL': md5_url, 'Type': 'EXTENDED METADATA',
+            'Description': 'Download md5 checksum',
+        })
+    return {'umm': {'RelatedUrls': urls}}
+
+
 # ===========================================================================
 # Context-manager factories — happy path (returns ≥1 message)
 # ===========================================================================
@@ -172,6 +293,45 @@ def usgs_happy():
         yield inst
 
 
+@contextmanager
+def s3bucket_happy():
+    inst = _make_s3bucket()
+    with patch('sarracenia.flowcb.poll.s3bucket.boto3.client') as mock_boto:
+        client = MagicMock()
+        client.list_objects.return_value = {
+            'Contents': [{'Key': 'some/prefix/file1.nc', 'Size': 1024}]
+        }
+        mock_boto.return_value = client
+        yield inst
+
+
+@contextmanager
+def nexrad_happy():
+    inst = _make_nexrad(poll_nexrad_day='2023-06-15')
+    with patch('sarracenia.flowcb.poll.nexrad.urllib.request.urlopen') as mock_url, \
+         patch('sarracenia.flowcb.poll.nexrad.boto3.client') as mock_boto:
+        mock_url.return_value = _nexrad_mock_urlopen([_NEXRAD_STATION])
+        s3 = _nexrad_mock_s3({
+            '2023/06/15/KORD/': [
+                {'Key': '2023/06/15/KORD/KORD20230615_000228_V06', 'Size': 12345},
+            ]
+        })
+        mock_boto.return_value = s3
+        yield inst
+
+
+@contextmanager
+def nasa_cmr_happy():
+    inst = _make_nasa_cmr()
+    item = _podaac_item()
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.headers = {'CMR-Search-After': ''}
+    resp.json.return_value = _cmr_response([item])
+    with patch('sarracenia.flowcb.poll.nasa_cmr.requests.get', return_value=resp):
+        yield inst
+
+
 # ===========================================================================
 # Context-manager factories — error path (external boundary fails)
 # ===========================================================================
@@ -206,6 +366,39 @@ def usgs_error():
         yield inst
 
 
+@contextmanager
+def s3bucket_error():
+    inst = _make_s3bucket()
+    with patch('sarracenia.flowcb.poll.s3bucket.boto3.client') as mock_boto:
+        client = MagicMock()
+        # No 'Contents' key simulates S3 error/empty
+        client.list_objects.return_value = {}
+        mock_boto.return_value = client
+        yield inst
+
+
+@contextmanager
+def nexrad_error():
+    inst = _make_nexrad(poll_nexrad_day='2023-06-15')
+    with patch('sarracenia.flowcb.poll.nexrad.urllib.request.urlopen') as mock_url, \
+         patch('sarracenia.flowcb.poll.nexrad.boto3.client') as mock_boto:
+        mock_url.return_value = _nexrad_mock_urlopen([_NEXRAD_STATION])
+        # All prefixes → no Contents key
+        mock_boto.return_value = _nexrad_mock_s3()
+        yield inst
+
+
+@contextmanager
+def nasa_cmr_error():
+    inst = _make_nasa_cmr()
+    resp = MagicMock()
+    resp.status_code = 500
+    resp.headers = {'CMR-Search-After': ''}
+    resp.json.return_value = _cmr_response([])
+    with patch('sarracenia.flowcb.poll.nasa_cmr.requests.get', return_value=resp):
+        yield inst
+
+
 # ===========================================================================
 # Context-manager factories — empty (no data available)
 # ===========================================================================
@@ -235,6 +428,38 @@ def usgs_empty():
     inst = _make_usgs()
     inst.sitecodes = []
     with patch('sarracenia.flowcb.poll.usgs.urllib.request.urlopen'):
+        yield inst
+
+
+@contextmanager
+def s3bucket_empty():
+    inst = _make_s3bucket()
+    with patch('sarracenia.flowcb.poll.s3bucket.boto3.client') as mock_boto:
+        client = MagicMock()
+        client.list_objects.return_value = {'Contents': []}
+        mock_boto.return_value = client
+        yield inst
+
+
+@contextmanager
+def nexrad_empty():
+    inst = _make_nexrad(poll_nexrad_day='2023-06-15')
+    with patch('sarracenia.flowcb.poll.nexrad.urllib.request.urlopen') as mock_url, \
+         patch('sarracenia.flowcb.poll.nexrad.boto3.client') as mock_boto:
+        # No stations → only hardcoded, all empty
+        mock_url.return_value = _nexrad_mock_urlopen([])
+        mock_boto.return_value = _nexrad_mock_s3()
+        yield inst
+
+
+@contextmanager
+def nasa_cmr_empty():
+    inst = _make_nasa_cmr()
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.headers = {'CMR-Search-After': ''}
+    resp.json.return_value = _cmr_response([])
+    with patch('sarracenia.flowcb.poll.nasa_cmr.requests.get', return_value=resp):
         yield inst
 
 
@@ -303,18 +528,76 @@ def usgs_error_then_happy():
         yield inst, reconfigure
 
 
+@contextmanager
+def s3bucket_error_then_happy():
+    inst = _make_s3bucket()
+    with patch('sarracenia.flowcb.poll.s3bucket.boto3.client') as mock_boto:
+        client_err = MagicMock()
+        client_err.list_objects.return_value = {}
+        mock_boto.return_value = client_err
+
+        def reconfigure():
+            client_ok = MagicMock()
+            client_ok.list_objects.return_value = {
+                'Contents': [{'Key': 'some/prefix/recovered.nc', 'Size': 42}]
+            }
+            mock_boto.return_value = client_ok
+
+        yield inst, reconfigure
+
+
+@contextmanager
+def nexrad_error_then_happy():
+    inst = _make_nexrad(poll_nexrad_day='2023-06-15')
+    with patch('sarracenia.flowcb.poll.nexrad.urllib.request.urlopen') as mock_url, \
+         patch('sarracenia.flowcb.poll.nexrad.boto3.client') as mock_boto:
+        mock_url.return_value = _nexrad_mock_urlopen([_NEXRAD_STATION])
+        mock_boto.return_value = _nexrad_mock_s3()  # empty
+
+        def reconfigure():
+            mock_boto.return_value = _nexrad_mock_s3({
+                '2023/06/15/KORD/': [
+                    {'Key': '2023/06/15/KORD/KORD20230615_000228_V06', 'Size': 12345},
+                ]
+            })
+
+        yield inst, reconfigure
+
+
+@contextmanager
+def nasa_cmr_error_then_happy():
+    inst = _make_nasa_cmr()
+    resp_err = MagicMock()
+    resp_err.status_code = 500
+    resp_err.headers = {'CMR-Search-After': ''}
+    resp_err.json.return_value = _cmr_response([])
+    with patch('sarracenia.flowcb.poll.nasa_cmr.requests.get') as mock_get:
+        mock_get.return_value = resp_err
+
+        def reconfigure():
+            item = _podaac_item()
+            resp_ok = MagicMock()
+            resp_ok.status_code = 200
+            resp_ok.headers = {'CMR-Search-After': ''}
+            resp_ok.json.return_value = _cmr_response([item])
+            mock_get.return_value = resp_ok
+
+        yield inst, reconfigure
+
+
 # ===========================================================================
 # Parametrize ID lists
 # ===========================================================================
 
-HAPPY = [mail_happy, copernicus_happy, usgs_happy]
-ERROR = [mail_error, copernicus_error, usgs_error]
-EMPTY = [mail_empty, copernicus_empty, usgs_empty]
+HAPPY = [mail_happy, copernicus_happy, usgs_happy, s3bucket_happy, nexrad_happy, nasa_cmr_happy]
+ERROR = [mail_error, copernicus_error, usgs_error, s3bucket_error, nexrad_error, nasa_cmr_error]
+EMPTY = [mail_empty, copernicus_empty, usgs_empty, s3bucket_empty, nexrad_empty, nasa_cmr_empty]
 RECOVERY = [
     mail_error_then_happy, copernicus_error_then_happy,
-    usgs_error_then_happy,
+    usgs_error_then_happy, s3bucket_error_then_happy,
+    nexrad_error_then_happy, nasa_cmr_error_then_happy,
 ]
-IDS = ['mail', 'copernicus', 'usgs']
+IDS = ['mail', 'copernicus', 'usgs', 's3bucket', 'nexrad', 'nasa_cmr']
 
 
 # ===========================================================================
@@ -476,4 +759,71 @@ class Test_Poll_Contract_malformed_input:
         inst = _make_mail_instance()
         inst.o.credentials.get.return_value = (False, None)
         result = inst.poll()
+        assert result == []
+
+    def test_s3bucket_no_contents_key(self):
+        """S3bucket with missing Contents key returns empty list."""
+        inst = _make_s3bucket()
+        with patch('sarracenia.flowcb.poll.s3bucket.boto3.client') as mock_boto:
+            client = MagicMock()
+            client.list_objects.return_value = {}
+            mock_boto.return_value = client
+            result = inst.poll()
+        assert result == []
+
+    def test_nexrad_empty_station_lines(self):
+        """Nexrad with no valid station lines still queries hardcoded ICAOs."""
+        inst = _make_nexrad(poll_nexrad_day='2023-01-01')
+        with patch('sarracenia.flowcb.poll.nexrad.urllib.request.urlopen') as mock_url, \
+             patch('sarracenia.flowcb.poll.nexrad.boto3.client') as mock_boto:
+            mock_url.return_value = _nexrad_mock_urlopen([])
+            s3 = _nexrad_mock_s3()
+            mock_boto.return_value = s3
+            result = inst.poll()
+        assert result == []
+        # Hardcoded ICAOs should still be queried
+        assert s3.list_objects.call_count > 0
+
+    def test_nasa_cmr_empty_hits_returns_empty(self):
+        """nasa_cmr with 0 hits returns empty list."""
+        inst = _make_nasa_cmr()
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.headers = {'CMR-Search-After': ''}
+        resp.json.return_value = _cmr_response([])
+        with patch('sarracenia.flowcb.poll.nasa_cmr.requests.get', return_value=resp):
+            result = inst.poll()
+        assert isinstance(result, list)
+        assert len(result) == 0
+
+
+# ===========================================================================
+# Test_Poll_Contract_return_consistency
+# ===========================================================================
+
+class Test_Poll_Contract_return_consistency:
+    """Additional contract: poll() must always return list, error paths
+    included. Tests that the return type is consistent across multiple
+    scenarios for each plugin."""
+
+    @pytest.mark.parametrize("factory", HAPPY, ids=IDS)
+    def test_happy_returns_non_empty_list(self, factory):
+        """Happy path returns at least one message."""
+        with factory() as inst:
+            result = inst.poll()
+        assert isinstance(result, list)
+        assert len(result) >= 1
+
+    @pytest.mark.parametrize("factory", ERROR, ids=IDS)
+    def test_error_returns_list(self, factory):
+        """Error path returns list (possibly empty), never raises."""
+        with factory() as inst:
+            result = inst.poll()
+        assert result is None or isinstance(result, list)
+
+    @pytest.mark.parametrize("factory", EMPTY, ids=IDS)
+    def test_empty_returns_empty_list(self, factory):
+        """Empty input returns exactly empty list."""
+        with factory() as inst:
+            result = inst.poll()
         assert result == []

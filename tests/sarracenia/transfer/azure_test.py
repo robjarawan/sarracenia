@@ -1,6 +1,8 @@
 import pytest
 #from unittest.mock import Mock
 
+pytest.importorskip("testcontainers", reason="testcontainers package not installed (requires Docker)")
+
 import sarracenia
 import sarracenia.config
 import sarracenia.transfer

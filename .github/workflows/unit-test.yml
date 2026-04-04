@@ -37,6 +37,10 @@ jobs:
 
       - name: Test with pytest
         run: |
+          # Default: run all tests (unit + optional_dep that have deps installed)
+          # For fast unit-only: pytest tests -m unit
+          # For optional-deps only: pytest tests -m optional_dep
+          # For integration-only: pytest tests -m integration
           pytest tests --junitxml=tests/junit/test-results.xml \
             --cov-config=tests/.coveragerc --cov=sarracenia --cov-report=html --cov-report=lcov --cov-report=xml \
             --html=tests/report.html --self-contained-html

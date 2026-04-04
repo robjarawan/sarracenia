@@ -5,6 +5,8 @@ pytest-depends>=1.0
 pytest-html>=3.2
 pytest-mock>=3.11
 
+# IMPORTANT: The correct redis lock package is "python-redis-lock" (imports as redis_lock).
+# Do NOT use "redis-lock" from PyPI — it has an incompatible API (RedisLock vs Lock class).
 python-redis-lock>=4
 fakeredis>=2.11
 fakeredis[lua]>=2.11

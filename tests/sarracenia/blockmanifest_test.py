@@ -11,7 +11,10 @@ try:
 except ImportError:
     HAVE_FLUFL = False
 
-pytestmark = pytest.mark.skipif(not HAVE_FLUFL, reason="flufl.lock not installed")
+pytestmark = [
+    pytest.mark.optional_dep,
+    pytest.mark.skipif(not HAVE_FLUFL, reason="flufl.lock not installed"),
+]
 
 
 def test_context_manager_creates_file(tmp_path):

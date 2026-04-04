@@ -44,11 +44,9 @@ features = {
        'mqtt': [ 'paho.mqtt>=1.5.1' ],
        'reassemble': [ 'flufl.lock' ],
        'vip': [ 'netifaces' ],
-       'redis': [ 'redis' ],
-       'ftppoll' : ['dateparser' ],
-       'mqtt': [ 'paho.mqtt>=1.5.1' ],
-       'vip': [ 'netifaces' ],
-       'redis': [ 'redis' ],
+       # NOTE: The correct redis lock package is "python-redis-lock" (imports as redis_lock).
+       # Do NOT use "redis-lock" from PyPI — it has an incompatible API.
+       'redis': [ 'redis', 'python-redis-lock>=4' ],
     } 
 
 

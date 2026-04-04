@@ -154,6 +154,7 @@ def test_put__Multi():
         download_retry.put([message, message, message, message])
         assert download_retry.redis.llen(download_retry.key_name_new) == 4
 
+@pytest.mark.requires_redis_lua
 def test_cleanup():
     """cleanup() calls redis_lock.reset() which uses Lua scripts (evalsha).
     fakeredis may not support evalsha, so skip if that's the case.
@@ -266,6 +267,7 @@ def test_on_housekeeping__FinishRetry(caplog):
     
         assert log_found_notFinished == True
 
+@pytest.mark.requires_redis_lua
 def test_on_housekeeping(caplog):
     with patch(target="redis.from_url", new=fakeredis.FakeStrictRedis.from_url, ):
         BaseOptions = Options()

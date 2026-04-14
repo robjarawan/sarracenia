@@ -90,9 +90,6 @@ class Retry(FlowCB):
                     continue
                 if k in m and (k in m['_deleteOnPost'] or k.startswith('new_')):
                     del m[k]
-            self.__set_isRetry(m)
-
-        message_list = self.__filter_by_retry_count(message_list)
 
         return (True, message_list)
 
@@ -119,11 +116,6 @@ class Retry(FlowCB):
             return
 
         mlist = self.download_retry.get(qty)
-
-        for m in mlist:
-            self.__set_isRetry(m)
-
-        mlist = self.__filter_by_retry_count(mlist)
 
         #logger.debug("loading from %s: qty=%d ... got: %d " % (self.download_retry_name, qty, len(mlist)))
         if len(mlist) > 0:

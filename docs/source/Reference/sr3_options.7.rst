@@ -2448,6 +2448,32 @@ to disable::
    topicPrefix None
 
 
+useCompression <flag> (default: False)
+--------------------------------------
+
+Enable SSH transport-level compression (zlib@openssh.com) on SFTP, SCP
+and SSH transfers handled by Paramiko. The flag maps directly to Paramiko's
+``SSHClient.connect(compress=True)``. When the server does not advertise
+compression the negotiation silently falls back to no compression, so the
+option is safe to turn on against mixed peers.
+
+Compression trades CPU for bandwidth. It is useful on slow or congested
+links carrying compressible payloads (text, CSV, XML, bulletins, GRIB1,
+BUFR). It is not useful on already-compressed data (GRIB2 with ccsds or
+jpeg2000 packing, NetCDF4 with the deflate filter, PNG, JPEG, MP4, and
+.zip/.gz/.xz archives) and will just burn CPU there.
+
+``useCompression`` only affects transfers that go through Paramiko.
+Transfers larger than *accelThreshold* that use *accelScpCommand* run an
+external scp; to compress those, pass ``-C`` to scp directly::
+
+   accelScpCommand /usr/bin/scp -C %s %d
+
+When the flag is enabled, a single INFO line is logged at connection time
+recording the compression algorithm the server agreed to, so operators can
+confirm compression is actually active.
+
+
 users <flag> (default: false)
 -----------------------------
 

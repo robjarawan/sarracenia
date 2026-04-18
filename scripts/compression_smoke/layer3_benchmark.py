@@ -282,14 +282,17 @@ def summarize(rows):
     return out
 
 
-def print_summary(summary, size_mb):
+def print_summary(summary, size_mb, payload_sizes=None):
     log("")
-    log(f"=== Summary (payload size {size_mb} MB, median of trials) ===")
-    hdr = f"{'payload':<13} {'link':<4} {'cmp':<5} {'wall_s':>8} {'±stdev':>7} {'wire_MB':>9} {'cpu_s':>7} {'nego':<20} sha"
+    if payload_sizes:
+        log(f"=== Summary (per-payload sizes below, median of trials) ===")
+    else:
+        log(f"=== Summary (payload size {size_mb} MB, median of trials) ===")
+    hdr = f"{'payload':<22} {'link':<4} {'cmp':<5} {'wall_s':>8} {'±stdev':>7} {'wire_MB':>9} {'cpu_s':>7} {'nego':<20} sha"
     log(hdr)
     log("-" * len(hdr))
     for r in sorted(summary, key=lambda x: (x["payload"], x["link"], x["compress"])):
-        log(f"{r['payload']:<13} {r['link']:<4} "
+        log(f"{r['payload']:<22} {r['link']:<4} "
             f"{'ON' if r['compress'] else 'off':<5} "
             f"{r['wall_s_median']:8.2f} {r['wall_s_stdev']:7.2f} "
             f"{r['wire_tx_mb_median']:9.2f} {r['cpu_s_median']:7.3f} "
@@ -300,7 +303,7 @@ def print_summary(summary, size_mb):
     for r in summary:
         pairs.setdefault((r["payload"], r["link"]), {})[r["compress"]] = r
     log(f"=== Compression effect (ON vs off) ===")
-    log(f"{'payload':<13} {'link':<4} {'wall_speedup':>14} {'wire_reduction':>15} {'cpu_overhead':>13}")
+    log(f"{'payload':<22} {'link':<4} {'wall_speedup':>14} {'wire_reduction':>15} {'cpu_overhead':>13}")
     for (payload, link), d in sorted(pairs.items()):
         if False in d and True in d:
             off, on = d[False], d[True]
@@ -308,7 +311,7 @@ def print_summary(summary, size_mb):
                 wall_speedup = off["wall_s_median"] / on["wall_s_median"]
                 wire_red = 1 - (on["wire_tx_mb_median"] / off["wire_tx_mb_median"])
                 cpu_over = (on["cpu_s_median"] - off["cpu_s_median"]) / max(off["cpu_s_median"], 0.001)
-                log(f"{payload:<13} {link:<4} "
+                log(f"{payload:<22} {link:<4} "
                     f"{wall_speedup:13.2f}x "
                     f"{wire_red*100:14.1f}% "
                     f"{cpu_over*100:12.1f}%")
@@ -326,10 +329,49 @@ def write_csv(rows, path):
             w.writerow(r)
 
 
+def _short_label(path, max_len=20):
+    """Compact filename for log/summary columns."""
+    name = os.path.basename(path)
+    # Strip the :CRDRCMASITS:DMS:CMC:RCM_PRODUCT-style suffix on DMS filenames.
+    if ":" in name:
+        name = name.split(":", 1)[0]
+    if len(name) <= max_len:
+        return name
+    # Keep product prefix + tail. e.g. S1A_EW_GRDM_...9062.zip -> S1A_EW_GRDM_..9062
+    return name[:max_len - 3] + "..."
+
+
+def load_real_payloads(paths):
+    """Read the listed files into memory. Returns dict {label: bytes}."""
+    out = {}
+    labels_seen = set()
+    for p in paths:
+        p = os.path.abspath(p)
+        if not os.path.isfile(p):
+            log(f"FATAL: --file path is not a regular file: {p}")
+            sys.exit(2)
+        label = _short_label(p)
+        # Uniqueify labels if two files collide
+        orig = label
+        i = 2
+        while label in labels_seen:
+            label = f"{orig}_{i}"
+            i += 1
+        labels_seen.add(label)
+        with open(p, "rb") as f:
+            data = f.read()
+        out[label] = data
+        log(f"loaded real payload {label}: {len(data):,} bytes from {p}")
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--payloads", default="zeros,ascii_repeat,wx_csv,bufr_sim,random,prestored_gz",
-                    help="comma-separated payload profiles")
+                    help="comma-separated synthetic payload profiles")
+    ap.add_argument("--file", action="append", default=[], dest="files",
+                    help="real-file payload (repeatable). Overrides --payloads "
+                         "and --size-mb; size is the file's own size.")
     ap.add_argument("--size-mb", type=int, default=10)
     ap.add_argument("--trials", type=int, default=2)
     ap.add_argument("--wan", action="store_true",
@@ -342,11 +384,16 @@ def main():
         log("--csv PATH is required")
         sys.exit(2)
 
-    payloads = [p.strip() for p in args.payloads.split(",") if p.strip()]
-    for p in payloads:
-        if p not in PAYLOAD_PROFILES:
-            log(f"unknown payload {p}; choices: {','.join(PAYLOAD_PROFILES)}")
-            sys.exit(2)
+    use_real_files = bool(args.files)
+
+    if not use_real_files:
+        payloads = [p.strip() for p in args.payloads.split(",") if p.strip()]
+        for p in payloads:
+            if p not in PAYLOAD_PROFILES:
+                log(f"unknown payload {p}; choices: {','.join(PAYLOAD_PROFILES)}")
+                sys.exit(2)
+    else:
+        payloads = None  # set after loading
 
     links = ["lan"]
     if args.wan and not args.lan_only:
@@ -360,13 +407,19 @@ def main():
         log("paramiko not importable")
         sys.exit(3)
 
-    size_b = args.size_mb * 1024 * 1024
-
-    # Pre-generate all payloads once so CPU of generation isn't counted in trials.
-    payload_bytes = {p: generate_payload(p, size_b) for p in payloads}
-    for p, b in payload_bytes.items():
-        log(f"prepared payload {p}: {len(b):,} bytes, "
-            f"gzip-ratio~={len(b)/max(len(gzip.compress(b, compresslevel=6)),1):.2f}x")
+    if use_real_files:
+        payload_bytes = load_real_payloads(args.files)
+        payloads = list(payload_bytes.keys())
+        # Skip the per-payload gzip-ratio probe -- real files may be >1 GB and
+        # gzipping the whole thing up-front would dominate runtime. The
+        # benchmark itself measures wire reduction empirically anyway.
+    else:
+        size_b = args.size_mb * 1024 * 1024
+        # Pre-generate once so CPU of generation isn't counted in trials.
+        payload_bytes = {p: generate_payload(p, size_b) for p in payloads}
+        for p, b in payload_bytes.items():
+            log(f"prepared payload {p}: {len(b):,} bytes, "
+                f"gzip-ratio~={len(b)/max(len(gzip.compress(b, compresslevel=6)),1):.2f}x")
 
     with tempfile.TemporaryDirectory(prefix="sr3_l3_keys_") as keys_dir:
         # 0o777 so uid 1001 (testuser inside atmoz/sftp) can write.
@@ -401,7 +454,8 @@ def main():
                                 row = {
                                     "payload": payload, "link": link,
                                     "compress": compress, "trial": trial,
-                                    "size_mb": args.size_mb, **t,
+                                    "size_mb": len(payload_bytes[payload]) / (1024 * 1024),
+                                    **t,
                                 }
                                 rows.append(row)
                                 log(f"  [{link}/{payload}/cmp={'ON' if compress else 'off'}/t={trial}] "
@@ -423,7 +477,8 @@ def main():
     write_csv(rows, args.csv)
     log(f"wrote CSV {args.csv}")
     summary = summarize(rows)
-    print_summary(summary, args.size_mb)
+    payload_sizes = {p: len(b) for p, b in payload_bytes.items()}
+    print_summary(summary, args.size_mb, payload_sizes if use_real_files else None)
 
 
 if __name__ == "__main__":

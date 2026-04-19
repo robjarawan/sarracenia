@@ -5,6 +5,8 @@ import json
 from tests.conftest import *
 #from unittest.mock import Mock
 
+pytestmark = pytest.mark.optional_dep
+
 import sarracenia.config
 import sarracenia.flowcb.filter.geometry
 

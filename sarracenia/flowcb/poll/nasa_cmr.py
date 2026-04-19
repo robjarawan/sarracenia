@@ -247,7 +247,7 @@ class Nasa_cmr(sarracenia.flowcb.FlowCB):
 
         # Figure out the date range
         # Format: start,end   2019-01-01T10:00:00Z,2019-02-01T00:00:00Z
-        t_now = datetime.datetime.utcnow()
+        t_now = datetime.datetime.now(datetime.timezone.utc)
         t_range_end = t_now.strftime("%Y-%m-%dT%H:%M:%SZ")
 
         try:

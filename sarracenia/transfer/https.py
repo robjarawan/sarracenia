@@ -160,6 +160,7 @@ class Https(Transfer):
 
         if not self.credentials(): 
             self.connected = False
+            return self.connected
 
         self.connected = True
         return self.connected

@@ -64,8 +64,8 @@ class Sftp(Transfer):
         self.ssh_config = None
 
         try:
-            self.ssh_config = paramiko.SSHConfig()
             ssh_config = os.path.expanduser('~/.ssh/config')
+            self.ssh_config = paramiko.SSHConfig()
             if os.path.isfile(ssh_config):
                 fp = open(ssh_config, 'r')
                 self.ssh_config.parse(fp)

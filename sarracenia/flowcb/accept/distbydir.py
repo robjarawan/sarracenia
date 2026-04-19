@@ -29,6 +29,6 @@ class Distbydir(FlowCB):
     def after_accept(self, worklist):
         for m in worklist.incoming:
             m['_deleteOnPost'] |= set(['exchangeSplitOverride'])
-            m['exchangeSplitOverride'] = int(hashlib.md5(m['relPath'].split('/')[self.o.distbydir_offset]).hexdigest()[0])
+            m['exchangeSplitOverride'] = int(hashlib.md5(m['relPath'].split('/')[self.o.distbydir_offset].encode()).hexdigest()[0], 16)
 
 

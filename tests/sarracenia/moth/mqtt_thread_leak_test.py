@@ -14,17 +14,8 @@ def make_mqtt_instance(is_subscriber=True):
     m.subscribe_in_progress = 0
     m._stop_requested = False
     m.o = {}
-    m.metrics = {
-        'rxBadCount': 0,
-        'txBadCount': 0,
-        'rxByteCount': 0,
-        'txByteCount': 0,
-        'rxGoodCount': 0,
-        'txGoodCount': 0,
-        'rxLast': '',
-        'txLast': '',
-        'connected': False,
-    }
+    m.metrics = {'connected': False}
+    m.metricsReset()
     return m
 
 

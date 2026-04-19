@@ -62,7 +62,7 @@ class Mail(Poll):
             logger.debug("pollUrl valid")
         else:
             logger.error("pollUrl: invalid credentials")
-            return
+            return []
 
         if not port:
             if protocol == "imaps":
@@ -83,7 +83,7 @@ class Mail(Poll):
                 except imaplib.IMAP4.error as e:
                     logger.error(
                         f"poll_email_ingest imaplib connection error: {e}")
-                    return
+                    return []
 
             elif protocol == "imap":
                 try:
@@ -92,9 +92,9 @@ class Mail(Poll):
                 except imaplib.IMAP4.error as e:
                     logger.error(
                         f"poll_email_ingest imaplib connection error: {e}")
-                    return
+                    return []
             else:
-                return
+                return []
             # only retrieves unread mail from inbox, change these values as to your preference
             mailman.select(mailbox='INBOX')
             resp, data = mailman.search(None, '(UNSEEN)')
@@ -121,7 +121,7 @@ class Mail(Poll):
                 except poplib.error_proto as e:
                     logger.error(
                         f"poll_email_ingest pop3 connection error: {e}")
-                    return
+                    return []
 
             elif protocol == "pop":
                 try:
@@ -131,9 +131,9 @@ class Mail(Poll):
                 except poplib.error_proto as e:
                     logger.error(
                         f"poll_email_ingest pop3 connection error: {e}")
-                    return
+                    return []
             else:
-                return
+                return []
             # only retrieves msgs that haven't triggered internal pop3 'read' flag
             numMsgs = len(mailman.list()[1])
             for index in range(numMsgs):

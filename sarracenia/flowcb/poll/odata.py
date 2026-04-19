@@ -150,7 +150,7 @@ class Odata(sarracenia.flowcb.FlowCB):
 
         # Figure out the date range
         # Format: ContentDate/Start gt 2023-04-25T12:35:00.000Z and ContentDate/Start lt 2023-04-26T12:35:00.000Z
-        t_now = datetime.datetime.utcnow()
+        t_now = datetime.datetime.now(datetime.timezone.utc)
         t_range_end = t_now.strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
         try:

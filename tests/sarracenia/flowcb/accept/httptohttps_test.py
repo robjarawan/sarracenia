@@ -48,3 +48,22 @@ def test_after_accept():
     assert worklist.incoming[1]['baseUrl'] == 'https://NotAReal.url'
     assert worklist.incoming[2]['baseUrl'] == 'sftp://NotAReal.url'
     #assert 'set_notice' not in worklist.incoming[2]
+
+
+def test_after_accept_empty_worklist():
+    """Empty worklist should not cause errors."""
+    httptohttps = HttpToHttps(sarracenia.config.default_config())
+    worklist = make_worklist()
+    httptohttps.after_accept(worklist)
+    assert len(worklist.incoming) == 0
+
+
+def test_after_accept_preserves_path_and_port():
+    """The full URL including port and path should be preserved, only scheme changes."""
+    httptohttps = HttpToHttps(sarracenia.config.default_config())
+    m = make_message('http')
+    m['baseUrl'] = 'http://example.com:8080'
+    worklist = make_worklist()
+    worklist.incoming = [m]
+    httptohttps.after_accept(worklist)
+    assert worklist.incoming[0]['baseUrl'] == 'https://example.com:8080'

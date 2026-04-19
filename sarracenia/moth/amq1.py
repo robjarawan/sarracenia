@@ -860,5 +860,5 @@ class AMQ1(Moth):
             self.client_thread.join()
             logger.debug("thread terminated")
             self.client_thread = None
-        # FIXME metrics stuff
+        self.metricsDisconnect()
         self.broker = None

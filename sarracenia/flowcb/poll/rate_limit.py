@@ -73,14 +73,14 @@ class Rate_limit(sarracenia.flowcb.poll.Poll):
             self.o.pollLsDirRateMax = self.o.pollRateLimit_count/self.o.pollRateLimit_period
 
         self._lsdir_count = 0
-        self._last_limit = datetime.datetime.utcnow()
+        self._last_limit = datetime.datetime.now(datetime.timezone.utc)
         self._lsdir_total = 0
     
     def poll(self):
         self._lsdir_total = 0 # total # of lsdirs since the poll started
-        start_time = datetime.datetime.utcnow()
+        start_time = datetime.datetime.now(datetime.timezone.utc)
         msgs = super().poll()
-        end_time = datetime.datetime.utcnow()
+        end_time = datetime.datetime.now(datetime.timezone.utc)
         rate = self._lsdir_total/((end_time - start_time).seconds)
         logger.info(f"Actual rate: {rate:.4f} lsdir/sec, pollLsdirRateMax: {self.o.pollLsdirRateMax:.4f} lsdir/sec")
         return msgs
@@ -88,7 +88,7 @@ class Rate_limit(sarracenia.flowcb.poll.Poll):
     def poll_directory(self, pdir):
         if self.o.pollRateLimit_count and self._lsdir_count >= self.o.pollRateLimit_count:
             logger.debug('%s requests have been made since %s', self._lsdir_count, self._last_limit)
-            time_to_sleep = int(self.o.pollRateLimit_period - (datetime.datetime.utcnow() - self._last_limit).seconds)
+            time_to_sleep = int(self.o.pollRateLimit_period - (datetime.datetime.now(datetime.timezone.utc) - self._last_limit).seconds)
             if time_to_sleep > 0:
                 logger.info(f"poll rate limit reached, need to sleep for {time_to_sleep} seconds")
                 # it would be better to also check for housekeeping interval like
@@ -99,7 +99,7 @@ class Rate_limit(sarracenia.flowcb.poll.Poll):
             else:
                 logger.debug('not sleeping, time_to_sleep=%s <= 0', time_to_sleep)
             self._lsdir_count = 0
-            self._last_limit = datetime.datetime.utcnow()
+            self._last_limit = datetime.datetime.now(datetime.timezone.utc)
         
         self._lsdir_count += 1
         self._lsdir_total += 1

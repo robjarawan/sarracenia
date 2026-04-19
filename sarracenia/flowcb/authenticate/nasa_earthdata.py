@@ -85,7 +85,7 @@ class Nasa_earthdata(BearerToken):
         """ date string format from NASA is MM/DD/YYYY :-(
         """
         if type(new_value) == str:
-            self.__token_expires = datetime.datetime.strptime(new_value, "%m/%d/%Y")
+            self.__token_expires = datetime.datetime.strptime(new_value, "%m/%d/%Y").replace(tzinfo=datetime.timezone.utc)
         else:
             self.__token_expires = new_value
     
@@ -106,7 +106,7 @@ class Nasa_earthdata(BearerToken):
         # expiry date or 00:00:00 the next day. If today >= expiry date, then try to get a new token every time this
         # runs. If it's not expired yet, we'll get the same token from the API and can try to check again on the next
         # run. If it is expired, we should get a brand new token.
-        today = datetime.datetime.utcnow()
+        today = datetime.datetime.now(datetime.timezone.utc)
         try:
             if self._token_expires and today >= self._token_expires:
                 logger.info(f"the token ending with ...{self._token[-5:]} " + 

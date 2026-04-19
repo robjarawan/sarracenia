@@ -66,9 +66,27 @@ amqp = [ "amqp" ]
 ftppoll = [ 'dateparser' ]
 mqtt = [ 'paho.mqtt>=1.5.1' ]
 vip = [ 'netifaces' ]
-redis = [ 'redis' ]
+redis = [ 'redis', 'python-redis-lock>=4' ]
 filetypes-redhat = [ 'file-magic' ]
 filetypes = [ 'python-magic' ]
+
+# NOTE: The correct redis lock package is "python-redis-lock" (imports as redis_lock).
+# Do NOT use "redis-lock" (PyPI) which has an incompatible API (RedisLock vs Lock).
+
+test = [
+  "pytest>=7.3",
+  "pytest-cov>=4.0",
+  "pytest-bug>=1.2",
+  "pytest-depends>=1.0",
+  "pytest-html>=3.2",
+  "pytest-mock>=3.11",
+  "python-redis-lock>=4",
+  "fakeredis[lua]>=2.11",
+  "boto3>=1.34",
+  "moto[s3]>=5.0",
+  "flufl.lock>=8.1.0",
+  "persist-queue>=0.8.1",
+]
 
 
 [project.urls]

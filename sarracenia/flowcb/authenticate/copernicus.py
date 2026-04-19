@@ -76,7 +76,7 @@ class Copernicus(BearerToken):
         self.o.add_option('grantType', kind='str', default_value='password')
 
         self._token = None
-        self._token_expires = datetime.datetime.utcnow()
+        self._token_expires = datetime.datetime.now(datetime.timezone.utc)
         self._refresh = None
         self._refresh_expires = self._token_expires
         # end __init__
@@ -85,7 +85,7 @@ class Copernicus(BearerToken):
         """ Returns a bearer token, or None
         """
         r = None
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.timezone.utc)
         if not self._token or self._token_expires <= now:
             self._token = None
 

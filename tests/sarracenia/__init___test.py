@@ -571,3 +571,87 @@ class Test_Message():
 
 
 
+
+
+def test_timeflt2str_integer_input():
+    result = sarracenia.timeflt2str(1000000000)
+    assert 'T' in result
+    assert len(result) >= 15
+
+def test_timeflt2str_zero():
+    result = sarracenia.timeflt2str(0)
+    assert 'T' in result
+    assert result.startswith('1970')
+
+def test_timestr2flt_roundtrip():
+    import time
+    original = time.time()
+    s = sarracenia.timeflt2str(original)
+    recovered = sarracenia.timestr2flt(s)
+    assert abs(original - recovered) < 0.001
+
+def test_durationToSeconds_integer():
+    assert sarracenia.durationToSeconds('60') == 60.0
+    assert sarracenia.durationToSeconds('0') == 0.0
+
+def test_durationToSeconds_float():
+    assert sarracenia.durationToSeconds('1.5') == 1.5
+
+def test_durationToSeconds_minutes():
+    assert sarracenia.durationToSeconds('2m') == 120.0
+
+def test_durationToSeconds_hours():
+    assert sarracenia.durationToSeconds('3h') == 10800.0
+
+def test_durationToSeconds_days():
+    assert sarracenia.durationToSeconds('1d') == 86400.0
+
+def test_naturalSize_zero():
+    result = sarracenia.naturalSize(0)
+    assert isinstance(result, str)
+
+def test_naturalSize_small():
+    result = sarracenia.naturalSize(1024)
+    assert isinstance(result, str)
+    assert len(result) > 0
+
+def test_naturalSize_fractional():
+    result = sarracenia.naturalSize(0.5)
+    assert isinstance(result, str)
+
+def test_baseUrlParse_sftp_double_slash():
+    result = sarracenia.baseUrlParse('sftp://host//path/to/file')
+    assert not result.path.startswith('//')
+
+def test_baseUrlParse_file_double_slash():
+    result = sarracenia.baseUrlParse('file:///path/to/file')
+    assert result.path == '/path/to/file'
+
+def test_baseUrlParse_http():
+    result = sarracenia.baseUrlParse('http://host//path')
+    assert result.scheme == 'http'
+    assert result.path == '//path'
+
+def test_message_init():
+    m = sarracenia.Message()
+    assert '_deleteOnPost' in m
+    assert isinstance(m['_deleteOnPost'], set)
+
+def test_message_isRetry_false_by_default():
+    m = sarracenia.Message()
+    m['pubTime'] = '20240101T000000'
+    assert m.isRetry() == False
+
+def test_message_isRetry_true():
+    m = sarracenia.Message()
+    m['pubTime'] = '20240101T000000'
+    m['_isRetry'] = True
+    assert m.isRetry() == True
+
+def test_message_getIDStr():
+    m = sarracenia.Message()
+    m['pubTime'] = '20240101T000000'
+    m['baseUrl'] = 'http://host'
+    m['relPath'] = 'path/file.txt'
+    result = m.getIDStr()
+    assert isinstance(result, str)

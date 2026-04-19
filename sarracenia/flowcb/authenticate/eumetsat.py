@@ -64,7 +64,7 @@ class Eumetsat(BearerToken):
         Code taken from https://gitlab.eumetsat.int/eumetlab/data-services/authorisation_functions/-/blob/master/authorisation_functions.py
         See API documentation here: https://eumetsatspace.atlassian.net/wiki/spaces/DSDS/pages/316014673/API+Authentication
         """
-        now = datetime.datetime.utcnow()
+        now = datetime.datetime.now(datetime.timezone.utc)
         # Only request a token if there's no cached token, or it's expired
         if not self._api_token or not self._token_expiry_time or now >= self._token_expiry_time:
             try: 

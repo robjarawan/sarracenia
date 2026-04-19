@@ -871,3 +871,4 @@ class MQTT(Moth):
             self.client.disconnect()
             self.client.loop_stop()
         self.connected=False
+        self.metricsDisconnect()

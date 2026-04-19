@@ -44,7 +44,7 @@ class Airnow(FlowCB):
                 if resp.ok:
                     mtime = datetime.datetime.strptime(resp.headers['last-modified'],\
                         '%a, %d %b %Y %H:%M:%S %Z')
-                    last_poll = datetime.datetime.utcnow() + datetime.timedelta(
+                    last_poll = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(
                         seconds=-sleep)
                     logger.info(mtime)
                     logger.info(last_poll)

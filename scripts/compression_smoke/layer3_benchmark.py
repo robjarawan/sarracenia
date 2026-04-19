@@ -52,6 +52,8 @@ PAYLOAD_PROFILES = {
     "prestored_gz": "pre-gzipped random bytes -- double-compression no-op",
 }
 
+# Default WAN profile: conservative "long-haul WAN" scenario.
+# Overridable via --wan-delay / --wan-loss / --wan-rate at invocation time.
 WAN_PROFILE = {"delay_ms": 100, "loss_pct": 0.1, "rate_mbit": 10}
 
 
@@ -376,7 +378,17 @@ def main():
     ap.add_argument("--trials", type=int, default=2)
     ap.add_argument("--wan", action="store_true",
                     help="also run WAN cells (tc netem via sudo)")
+    ap.add_argument("--wan-only", action="store_true",
+                    help="skip LAN cells (only useful with --wan)")
     ap.add_argument("--lan-only", action="store_true")
+    ap.add_argument("--wan-delay", type=float, default=None,
+                    help="override WAN one-way delay in ms (default 100)")
+    ap.add_argument("--wan-loss", type=float, default=None,
+                    help="override WAN loss percentage, e.g. 0.1 for 0.1% (default 0.1)")
+    ap.add_argument("--wan-rate", type=float, default=None,
+                    help="override WAN bandwidth cap in Mbit/s (default 10)")
+    ap.add_argument("--wan-label", default=None,
+                    help="label for WAN cells in CSV/summary (default 'wan')")
     ap.add_argument("--csv", default=None, help="output CSV path (required)")
     args = ap.parse_args()
 
@@ -395,9 +407,21 @@ def main():
     else:
         payloads = None  # set after loading
 
-    links = ["lan"]
-    if args.wan and not args.lan_only:
-        links.append("wan")
+    # Apply WAN-profile overrides up-front so tc_apply_wan uses them.
+    if args.wan_delay is not None:
+        WAN_PROFILE["delay_ms"] = args.wan_delay
+    if args.wan_loss is not None:
+        WAN_PROFILE["loss_pct"] = args.wan_loss
+    if args.wan_rate is not None:
+        WAN_PROFILE["rate_mbit"] = args.wan_rate
+    wan_label = args.wan_label or "wan"
+
+    if args.wan_only:
+        links = [wan_label]
+    else:
+        links = ["lan"]
+        if args.wan and not args.lan_only:
+            links.append(wan_label)
 
     # Sanity checks
     require(["docker", "version"], why="docker is required")
@@ -437,8 +461,8 @@ def main():
 
             rows = []
             for link in links:
-                if link == "wan":
-                    log(f"applying WAN shaping on {veth}: "
+                if link != "lan":
+                    log(f"applying WAN shaping on {veth} for link={link!r}: "
                         f"{WAN_PROFILE['delay_ms']}ms delay, "
                         f"{WAN_PROFILE['loss_pct']}% loss, "
                         f"{WAN_PROFILE['rate_mbit']} Mbit/s")
@@ -468,7 +492,7 @@ def main():
                                     log("FATAL correctness regression -- sha512 mismatch")
                                     sys.exit(6)
                 finally:
-                    if link == "wan":
+                    if link != "lan":
                         tc_clear_wan(veth)
         finally:
             log(f"stopping {name}")

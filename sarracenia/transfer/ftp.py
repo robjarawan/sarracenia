@@ -260,9 +260,12 @@ class Ftp(Transfer):
                 logger.warning("Unable to ftp.pwd")
                 logger.debug('Exception details: ', exc_info=True)
 
+            # Publish the ftp handle before flipping the connected flag so
+            # any reader that sees connected=True is guaranteed to see a
+            # non-None self.ftp.
             self.pwd = self.originalDir
-            self.connected = True
             self.ftp = ftp
+            self.connected = True
 
         except Exception:
             # Cancel the connect-timeout alarm before any cleanup so SIGALRM

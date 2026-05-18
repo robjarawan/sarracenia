@@ -144,3 +144,52 @@ def test_connect_success_does_not_close():
     assert transfer.connected is True
     assert transfer.ftp is mock_ftp
     mock_ftp.close.assert_not_called()
+
+
+def test_connect_cancels_alarm_before_close_on_failure():
+    # Lock in the SIGALRM-safe ordering: on failure, alarm_cancel must run
+    # before ftp.close() so a pending SIGALRM cannot interrupt cleanup.
+    transfer = make_ftp_transfer()
+
+    mock_ftp = MagicMock(spec=ftplib.FTP)
+    mock_ftp.connect.return_value = None
+    mock_ftp.login.side_effect = ftplib.error_perm("530 Login incorrect")
+
+    call_order = []
+
+    def record_cancel():
+        call_order.append("alarm_cancel")
+
+    def record_close():
+        call_order.append("ftp.close")
+
+    mock_ftp.close.side_effect = record_close
+
+    with patch("ftplib.FTP", return_value=mock_ftp):
+        with patch("sarracenia.transfer.ftp.alarm_set"):
+            with patch("sarracenia.transfer.ftp.alarm_cancel", side_effect=record_cancel):
+                result = transfer.connect()
+
+    assert result is False
+    assert call_order == ["alarm_cancel", "ftp.close"], \
+        "alarm_cancel must run before ftp.close on the failure path"
+
+
+def test_connect_swallows_close_error_during_cleanup():
+    # If ftp.close itself raises during cleanup, connect must still return
+    # cleanly (False) rather than propagating the cleanup error.
+    transfer = make_ftp_transfer()
+
+    mock_ftp = MagicMock(spec=ftplib.FTP)
+    mock_ftp.connect.return_value = None
+    mock_ftp.login.side_effect = ftplib.error_perm("530 Login incorrect")
+    mock_ftp.close.side_effect = OSError("close failed")
+
+    with patch("ftplib.FTP", return_value=mock_ftp):
+        with patch("sarracenia.transfer.ftp.alarm_set"):
+            with patch("sarracenia.transfer.ftp.alarm_cancel"):
+                result = transfer.connect()
+
+    assert result is False
+    assert transfer.connected is False
+    mock_ftp.close.assert_called_once()

@@ -265,13 +265,17 @@ class Ftp(Transfer):
             self.ftp = ftp
 
         except Exception:
+            # Cancel the connect-timeout alarm before any cleanup so SIGALRM
+            # cannot interrupt ftp.close() and mask the original failure.
+            alarm_cancel()
             logger.error("Unable to connect to %s (user:%s)", self.host, self.user)
             logger.debug('Exception details: ', exc_info=True)
             if ftp is not None:
                 try:
                     ftp.close()
-                except Exception:
-                    pass
+                except Exception as cleanup_err:
+                    logger.debug("ftp.close failed during cleanup: %s", cleanup_err)
+            return self.connected
 
         alarm_cancel()
         return self.connected

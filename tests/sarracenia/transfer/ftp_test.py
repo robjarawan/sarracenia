@@ -193,3 +193,81 @@ def test_connect_swallows_close_error_during_cleanup():
     assert result is False
     assert transfer.connected is False
     mock_ftp.close.assert_called_once()
+
+
+def _set_credentials(transfer, tls, implicit_ftps, port=21):
+    # connect() calls self.credentials(), which resets self.tls and
+    # self.implicit_ftps from the credentials mock. Override the mock so
+    # the desired TLS branch is exercised.
+    transfer.o.credentials.get.return_value = (
+        True,
+        MagicMock(
+            url=MagicMock(
+                hostname="localhost",
+                port=port,
+                username="user",
+                password="pass",
+            ),
+            tls=tls,
+            prot_p=False,
+            passive=True,
+            binary=True,
+            implicit_ftps=implicit_ftps,
+        ),
+    )
+
+
+def test_connect_closes_implicit_ftps_on_login_failure():
+    # Implicit FTPS path: IMPLICIT_FTP_TLS().connect() + login().
+    # If login raises, the constructed object must be closed.
+    transfer = make_ftp_transfer()
+    _set_credentials(transfer, tls=True, implicit_ftps=True, port=990)
+
+    mock_ftp = MagicMock()
+    mock_ftp.connect.return_value = None
+    mock_ftp.login.side_effect = ftplib.error_perm("530 Login incorrect")
+
+    with patch("sarracenia.transfer.ftp.IMPLICIT_FTP_TLS", return_value=mock_ftp):
+        with patch("sarracenia.transfer.ftp.alarm_set"):
+            with patch("sarracenia.transfer.ftp.alarm_cancel"):
+                result = transfer.connect()
+
+    assert result is False
+    assert transfer.connected is False
+    mock_ftp.close.assert_called_once()
+
+
+def test_connect_closes_ftp_tls_on_set_pasv_failure():
+    # Explicit FTPS path: ftplib.FTP_TLS(host, user, password) connects+logs in
+    # via its constructor, then set_pasv runs separately. If set_pasv raises,
+    # the constructed FTP_TLS object must be closed.
+    transfer = make_ftp_transfer()
+    _set_credentials(transfer, tls=True, implicit_ftps=False)
+
+    mock_ftp = MagicMock()
+    mock_ftp.set_pasv.side_effect = OSError("set_pasv failed")
+
+    with patch("ftplib.FTP_TLS", return_value=mock_ftp):
+        with patch("sarracenia.transfer.ftp.alarm_set"):
+            with patch("sarracenia.transfer.ftp.alarm_cancel"):
+                result = transfer.connect()
+
+    assert result is False
+    assert transfer.connected is False
+    mock_ftp.close.assert_called_once()
+
+
+def test_connect_ftp_tls_constructor_failure_does_not_crash_cleanup():
+    # FTP_TLS connects+logs in via constructor. If the constructor raises,
+    # the local ftp variable is never assigned and remains None. Cleanup
+    # must skip ftp.close() rather than dereference None.
+    transfer = make_ftp_transfer()
+    _set_credentials(transfer, tls=True, implicit_ftps=False)
+
+    with patch("ftplib.FTP_TLS", side_effect=ftplib.error_perm("530 denied")):
+        with patch("sarracenia.transfer.ftp.alarm_set"):
+            with patch("sarracenia.transfer.ftp.alarm_cancel"):
+                result = transfer.connect()
+
+    assert result is False
+    assert transfer.connected is False

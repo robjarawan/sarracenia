@@ -218,7 +218,7 @@ class Ftp(Transfer):
         try:
             expire = -999
             if self.o.timeout: expire = self.o.timeout
-            if self.port == '' or self.port == None:
+            if self.port == '' or self.port is None:
                 if self.implicit_ftps:
                     self.port = 990
                 else:

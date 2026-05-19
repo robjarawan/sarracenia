@@ -126,6 +126,40 @@ def test_connect_keyboard_interrupt_propagates():
                     transfer.connect()
 
 
+def test_connect_closes_ftp_on_keyboard_interrupt():
+    # KeyboardInterrupt during the connect call must NOT leak the open
+    # socket. The finally block closes ftp before the interrupt propagates.
+    transfer = make_ftp_transfer()
+
+    mock_ftp = MagicMock(spec=ftplib.FTP)
+    mock_ftp.connect.side_effect = KeyboardInterrupt
+
+    with patch("ftplib.FTP", return_value=mock_ftp):
+        with patch("sarracenia.transfer.ftp.alarm_set"):
+            with patch("sarracenia.transfer.ftp.alarm_cancel"):
+                with pytest.raises(KeyboardInterrupt):
+                    transfer.connect()
+
+    mock_ftp.close.assert_called_once()
+
+
+def test_connect_closes_ftp_on_system_exit():
+    # Same protection as KeyboardInterrupt: SystemExit also escapes
+    # except Exception, so the finally block must still close ftp.
+    transfer = make_ftp_transfer()
+
+    mock_ftp = MagicMock(spec=ftplib.FTP)
+    mock_ftp.connect.side_effect = SystemExit
+
+    with patch("ftplib.FTP", return_value=mock_ftp):
+        with patch("sarracenia.transfer.ftp.alarm_set"):
+            with patch("sarracenia.transfer.ftp.alarm_cancel"):
+                with pytest.raises(SystemExit):
+                    transfer.connect()
+
+    mock_ftp.close.assert_called_once()
+
+
 def test_connect_success_does_not_close():
     transfer = make_ftp_transfer()
 

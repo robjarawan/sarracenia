@@ -216,71 +216,76 @@ class Ftp(Transfer):
 
         ftp = None
         try:
-            expire = -999
-            if self.o.timeout: expire = self.o.timeout
-            if self.port == '' or self.port == None:
-                if self.implicit_ftps:
-                    self.port = 990
-                else:
-                    self.port = 21
-
-            # plain FTP with no encryption (usually port 21)
-            if not self.tls:
-                ftp = ftplib.FTP()
-                ftp.encoding = 'utf-8'
-                ftp.connect(self.host, self.port, timeout=expire)
-                ftp.login(self.user, self.password)
-            # implicit FTPS (usually port 990)
-            elif self.tls and self.implicit_ftps:
-                ftp = IMPLICIT_FTP_TLS()
-                ftp.encoding = self.o.ftpFilenameEncoding
-                ftp.connect(host=self.host, port=self.port, timeout=expire)
-                ftp.login(user=self.user, passwd=self.password)
-                if self.prot_p:
-                    ftp.prot_p()
-            # explicit FTPS (port 21)
-            else:
-                # ftplib supports FTPS with TLS
-                ftp = ftplib.FTP_TLS(self.host,
-                                     self.user,
-                                     self.password,
-                                     timeout=expire)
-                ftp.encoding = self.o.ftpFilenameEncoding
-                if self.prot_p: ftp.prot_p()
-                # needed only if prot_p then set back to prot_c
-                #else          : ftp.prot_c()
-
-            ftp.set_pasv(self.passive)
-
-            self.originalDir = '.'
-
             try:
-                self.originalDir = ftp.pwd()
+                expire = -999
+                if self.o.timeout: expire = self.o.timeout
+                if self.port == '' or self.port == None:
+                    if self.implicit_ftps:
+                        self.port = 990
+                    else:
+                        self.port = 21
+
+                # plain FTP with no encryption (usually port 21)
+                if not self.tls:
+                    ftp = ftplib.FTP()
+                    ftp.encoding = 'utf-8'
+                    ftp.connect(self.host, self.port, timeout=expire)
+                    ftp.login(self.user, self.password)
+                # implicit FTPS (usually port 990)
+                elif self.tls and self.implicit_ftps:
+                    ftp = IMPLICIT_FTP_TLS()
+                    ftp.encoding = self.o.ftpFilenameEncoding
+                    ftp.connect(host=self.host, port=self.port, timeout=expire)
+                    ftp.login(user=self.user, passwd=self.password)
+                    if self.prot_p:
+                        ftp.prot_p()
+                # explicit FTPS (port 21)
+                else:
+                    # ftplib supports FTPS with TLS
+                    ftp = ftplib.FTP_TLS(self.host,
+                                         self.user,
+                                         self.password,
+                                         timeout=expire)
+                    ftp.encoding = self.o.ftpFilenameEncoding
+                    if self.prot_p: ftp.prot_p()
+                    # needed only if prot_p then set back to prot_c
+                    #else          : ftp.prot_c()
+
+                ftp.set_pasv(self.passive)
+
+                self.originalDir = '.'
+
+                try:
+                    self.originalDir = ftp.pwd()
+                except Exception:
+                    logger.warning("Unable to ftp.pwd")
+                    logger.debug('Exception details: ', exc_info=True)
+
+                # Publish the ftp handle before flipping the connected flag so
+                # any reader that sees connected=True is guaranteed to see a
+                # non-None self.ftp.
+                self.pwd = self.originalDir
+                self.ftp = ftp
+                self.connected = True
+                # Ownership transferred to self.ftp; the finally below must
+                # not close it.
+                ftp = None
+
             except Exception:
-                logger.warning("Unable to ftp.pwd")
+                logger.error("Unable to connect to %s (user:%s)", self.host, self.user)
                 logger.debug('Exception details: ', exc_info=True)
-
-            # Publish the ftp handle before flipping the connected flag so
-            # any reader that sees connected=True is guaranteed to see a
-            # non-None self.ftp.
-            self.pwd = self.originalDir
-            self.ftp = ftp
-            self.connected = True
-
-        except Exception:
-            # Cancel the connect-timeout alarm before any cleanup so SIGALRM
-            # cannot interrupt ftp.close() and mask the original failure.
+        finally:
+            # alarm_cancel first so a pending SIGALRM cannot interrupt the
+            # close below. This finally also runs on KeyboardInterrupt and
+            # SystemExit, so an orphan socket created before the assignment
+            # to self.ftp will still be closed.
             alarm_cancel()
-            logger.error("Unable to connect to %s (user:%s)", self.host, self.user)
-            logger.debug('Exception details: ', exc_info=True)
             if ftp is not None:
                 try:
                     ftp.close()
                 except Exception as cleanup_err:
                     logger.debug("ftp.close failed during cleanup: %s", cleanup_err)
-            return self.connected
 
-        alarm_cancel()
         return self.connected
 
     # credentials...

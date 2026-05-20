@@ -41,6 +41,7 @@ class Sftp(Transfer):
     Sarracenia transfer protocol subclass supports/uses additional custom options:
 
     * accelScpCommand (default: '/usr/bin/scp %s %d' )
+    * useCompression  (default: False ) -- enable SSH transport compression (zlib@openssh.com)
 
     The module uses the paramiko library for python SecSH support ( https://www.paramiko.org/ )
     """
@@ -51,6 +52,7 @@ class Sftp(Transfer):
         logger.debug("sr_sftp __init__")
 
         self.o.add_option("accelScpCommand", "str", "/usr/bin/scp %s %d")
+        self.o.add_option("useCompression", "flag", False)
         # sftp command times out after 20 secs
         # this setting is different from the computed timeout (protocol)
 
@@ -219,11 +221,13 @@ class Sftp(Transfer):
             if self.password:
                 self.ssh.connect(self.host,self.port,self.user,self.password, \
                                  pkey=None,key_filename=self.ssh_keyfile,\
-                                 timeout=self.o.timeout,allow_agent=False,look_for_keys=False)
+                                 timeout=self.o.timeout,allow_agent=False,look_for_keys=False,\
+                                 compress=self.o.useCompression)
             else:
                 self.ssh.connect(self.host,self.port,self.user,self.password, \
                                  pkey=None,key_filename=self.ssh_keyfile,\
-                                 timeout=self.o.timeout)
+                                 timeout=self.o.timeout,\
+                                 compress=self.o.useCompression)
             #if ssh_keyfile != None :
             #  key=DSSKey.from_private_key_file(ssh_keyfile,password=None)
 
@@ -239,6 +243,16 @@ class Sftp(Transfer):
 
             self.connected = True
             self.sftp = sftp
+
+            if self.o.useCompression:
+                try:
+                    transport = self.ssh.get_transport()
+                    # remote_compression is the algorithm the server agreed to.
+                    negotiated = getattr(transport, 'remote_compression', None)
+                    logger.info('sr_sftp: compression requested, negotiated=%s', negotiated)
+                except Exception:
+                    logger.info('sr_sftp: compression requested (negotiation unreadable)')
+
             return True
 
         except:

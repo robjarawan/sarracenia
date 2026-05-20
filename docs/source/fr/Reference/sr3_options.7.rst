@@ -2420,6 +2420,35 @@ Sarracenia a une convention sur la manière dont les *topic* des produits sont o
 un *topicPrefix*, suivi de *subtopic* (sous-thèmes) dérivés du champ *relPath* du message.
 Certains réseaux peuvent choisir d'utiliser des conventions thématiques différentes, externes à la sarracenia.
 
+useCompression <flag> (défaut: False)
+-------------------------------------
+
+Active la compression au niveau du transport SSH (zlib@openssh.com) pour
+les transferts SFTP, SCP et SSH gérés par Paramiko. L'option est transmise
+directement à ``SSHClient.connect(compress=True)`` de Paramiko. Lorsque le
+serveur n'annonce aucune compression, la négociation retombe silencieusement
+sur l'absence de compression; l'option est donc sûre à activer face à des
+pairs mixtes.
+
+La compression échange du CPU contre de la bande passante. Elle est utile
+sur des liens lents ou congestionnés transportant des données compressibles
+(texte, CSV, XML, bulletins, GRIB1, BUFR). Elle n'apporte aucun gain sur des
+données déjà compressées (GRIB2 avec ccsds ou jpeg2000, NetCDF4 avec le
+filtre deflate, PNG, JPEG, MP4, archives .zip/.gz/.xz) et ne fait que
+consommer du CPU dans ces cas.
+
+``useCompression`` n'affecte que les transferts qui passent par Paramiko.
+Les transferts plus grands que *accelThreshold* qui utilisent
+*accelScpCommand* exécutent un scp externe; pour les compresser, passez
+``-C`` directement à scp::
+
+   accelScpCommand /usr/bin/scp -C %s %d
+
+Quand l'option est activée, une ligne INFO est journalisée à la connexion
+indiquant l'algorithme de compression négocié avec le serveur, permettant
+aux opérateurs de confirmer que la compression est réellement active.
+
+
 users <flag> (défaut: false)
 ----------------------------
 

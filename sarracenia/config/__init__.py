@@ -595,7 +595,7 @@ def config_path(subdir, config, mandatory=True, ctype='conf'):
         if subdir == 'plugins':
             logger.error("it is not allowed to download plugins")
         else:
-            ok = Config.wget_config(urlstr, path)
+            ok = wget_config(urlstr, path)
 
     # priority 1 : config given is a valid path
 

@@ -242,10 +242,10 @@ class Wmo2msc(FlowCB):
             logger.debug('read twice: %s ', input_file)
 
             # Determine file format (fmt) and apply transformation.
-            if self.bulletin[1].lstrip()[:4] in ['BUFR', 'GRIB', '\211PNG']:
+            if self.bulletin[1].lstrip()[:4] in [b'BUFR', b'GRIB', b'\x89PNG']:
                 fmt = 'wmo-binary'
                 self.replaceChar('\r', '')
-            elif self.bulletin[0][:11] in ['SFUK45 EGRR']:
+            elif self.bulletin[0][:11] in [b'SFUK45 EGRR']:
                 # This file is encoded in an indecipherably non-standard format.
                 fmt = 'unknown-binary'
 

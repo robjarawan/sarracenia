@@ -88,7 +88,7 @@ class Clamav(FlowCB):
             for m in worklist.incoming:
                 scanfn = m['new_dir'] + os.sep + m['new_file']
                 logger.info(f'scanning: {scanfn}')
-                if self.avscan_hit(scanfn):
+                if not self.avscan_hit(scanfn):
                     worklist.rejected.append(m)
                 else:
                     new_incoming.append(m)
@@ -100,7 +100,7 @@ class Clamav(FlowCB):
             for m in worklist.ok:
                 scanfn = m['new_dir'] + os.sep + m['new_file']
                 logger.info(f'scanning: {scanfn}')
-                if self.avscan_hit(scanfn):
+                if not self.avscan_hit(scanfn):
                     worklist.rejected.append(m)
                 else:
                     new_ok.append(m)

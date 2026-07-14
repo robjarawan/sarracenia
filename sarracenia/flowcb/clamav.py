@@ -60,7 +60,7 @@ class Clamav(FlowCB):
         self.metric_scanned = 0
         self.metric_hits = 0
        
-        if sarracenia.features['pyclamd']['present']:
+        if sarracenia.features['clamd']['present']:
             import pyclamd
             self.av = pyclamd.ClamdAgnostic()
             print("clam_scan on_part plugin initialized")

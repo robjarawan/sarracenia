@@ -129,6 +129,7 @@ class Send_egc_les(FlowCB):
             else:
                 logger.error("file_send_egc_les telnet credentials invalid")
                 worklist.rejected.append(msg)
+                continue
     
             timeout = int(self.o.file_send_egc_les_timeout)
     

@@ -21,6 +21,7 @@
 #
 #
 
+import errno
 import logging, paramiko, os, sys, time
 from paramiko import *
 from stat import *
@@ -496,7 +497,9 @@ class Sftp(Transfer):
            else:
                try:
                    self.sftp.stat(remote_file)
-               except:
+               except OSError as ex:
+                   if not isinstance(ex, FileNotFoundError) and ex.errno != errno.ENOENT:
+                       raise
                    rfp = self.sftp.file(remote_file, 'wb', self.o.bufSize)
                    rfp.close()
 

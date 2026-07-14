@@ -222,7 +222,7 @@ class Swim(PostFormat):
         return msg
 
     @staticmethod
-    def exportMine(body, options) -> dict:
+    def exportMine(body, options) -> tuple:
         """
             given a v03 (internal) message, produce an encoded SWIM version.
 
@@ -384,10 +384,10 @@ class Swim(PostFormat):
 
         if 'contentType' in body:
             if 'xml' in body['contentType'] and 'content' in body and body['content'] is not None:
-                body['amqp1_content_type'] = 'application/xml'
+                raw_body['amqp1_content_type'] = 'application/xml'
             # Only assign uri-list when data only available from link
             else:
-               body['amqp1_content_type'] = 'application/uri-list'
+               raw_body['amqp1_content_type'] = 'application/uri-list'
 
             # For technical messages
             if 'json' in body['contentType']:
@@ -395,4 +395,6 @@ class Swim(PostFormat):
 
         logger.critical(f"SWIM Message : {raw_body}")
 
-        return raw_body
+        payload = raw_body.pop('body', b'')
+        content_type = raw_body.pop('amqp1_content_type', 'application/uri-list')
+        return payload, raw_body, content_type

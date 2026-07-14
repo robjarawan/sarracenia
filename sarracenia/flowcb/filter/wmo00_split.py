@@ -103,11 +103,23 @@ class Wmo00_split(FlowCB):
                 if self.o.wmo00_encapsulate:
                     encapsulated_payload = input_data[current:current+payload_len]
 
-                # skip second nnn wrapper.
-
-                # type.SOH\r\r\n nnn \r\r\n  -->11 bytes
-                payload_start= 10 if input_data[current+9] == b'\r' else 12
-                logger.debug("consuming n-digit inner digit header")
+                # Skip the inner SOH/digit wrapper. Both three- and five-digit
+                # length fields occur in WMO00 streams.
+                if input_data[current:current + 1] == b'\x01' \
+                        and input_data[current + 1:current + 4] == b'\r\r\n' \
+                        and input_data[current + 4:current + 7].isdigit() \
+                        and input_data[current + 7:current + 10] == b'\r\r\n':
+                    payload_start = 10
+                elif input_data[current:current + 1] == b'\x01' \
+                        and input_data[current + 1:current + 4] == b'\r\r\n' \
+                        and input_data[current + 4:current + 9].isdigit() \
+                        and input_data[current + 9:current + 12] == b'\r\r\n':
+                    payload_start = 12
+                else:
+                    logger.error("record corrupt, invalid inner WMO00 header")
+                    current += payload_len
+                    continue
+                logger.debug("consuming %s-byte inner header", payload_start)
                 payload=input_data[current+payload_start:current+payload_len-1]
                      
                 current += payload_len

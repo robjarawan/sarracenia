@@ -133,14 +133,15 @@ class Mail_ingest(FlowCB):
                                     logger.info(f"download_email_ingest downloaded file: {msg['new_dir']}"+'/'+msg['new_file'])
                                     
                                     sumalgo = sarracenia.identity.Identity.factory(self.o.identity_method)
-                                    sumalgo.set_path(path)
-                                    with open(msg['new_dir']+'/'+msg['new_file'], 'w') as f:
+                                    destination = msg['new_dir']+'/'+msg['new_file']
+                                    sumalgo.set_path(destination)
+                                    with open(destination, 'w') as f:
                                         sumalgo.update(email_message)
                                         f.write(email_message)
                                         f.close()
                                 
-                                    message['size'] = len(bytes(email_message,'utf8'))
-                                    message['identity'] = { 'method': self.o.identity_method, 'value': sumalgo.value }
+                                    msg['size'] = len(bytes(email_message,'utf8'))
+                                    msg['identity'] = { 'method': self.o.identity_method, 'value': sumalgo.value }
                                     if self.o.delete :
                                         mailman.dele(index+1)
                                     found=True

@@ -27,6 +27,14 @@ def _make_credential(url_str):
     return cred
 
 
+class _AttributeMessage(sarracenia.Message):
+    """Provide only the legacy attribute needed to isolate POP processing tests."""
+
+    @property
+    def baseUrl(self):
+        return self['baseUrl']
+
+
 class Test_MailIngestCredentials:
     """Regression tests for PR #989 / #1677 credential handling in mail_ingest."""
 
@@ -117,3 +125,31 @@ class Test_MailIngestCredentials:
 
         result = ingest.download(msg)
         assert result is False
+
+
+def test_pop_match_updates_message_metadata(tmp_path):
+    ingest = _make_ingest()
+    ingest.o.delete = False
+    ingest.o.identity_method = 'sha512'
+    url = 'pops://user:secret@mail.example.com/'
+    message_id = 'wanted@example.com'
+    msg = _AttributeMessage()
+    msg['baseUrl'] = url
+    msg['new_dir'] = str(tmp_path)
+    msg['new_file'] = message_id
+    ingest.o.credentials = MagicMock()
+    ingest.o.credentials.get.return_value = (True, _make_credential(url))
+    lines = [b'Message-ID: <wanted@example.com>', b'Subject: test', b'', b'body']
+
+    with patch('poplib.POP3_SSL') as mock_pop:
+        connection = mock_pop.return_value
+        connection.list.return_value = ('+OK', [b'1 100'], 100)
+        connection.retr.return_value = ('+OK', lines, 100)
+
+        assert ingest.download(msg) is True
+
+    expected = 'Message-ID: <wanted@example.com>\nSubject: test\n\nbody\n'
+    assert (tmp_path / message_id).read_text() == expected
+    assert msg['size'] == len(expected.encode('utf-8'))
+    assert msg['identity']['method'] == 'sha512'
+    assert msg['identity']['value']

@@ -138,7 +138,7 @@ class Send_egc_les(FlowCB):
             # Read in the bulletin and replace any instances of .S with S, \n with \r\n
             # and add .S\r\n at the end indicating 'store and submit'
     
-            filepath = msg['new_relPath']
+            filepath = os.path.join(msg['new_dir'], msg['new_file'])
             with open(filepath, 'r') as f:
                 data = f.read()
             data = data.replace('.S', ' S')

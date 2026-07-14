@@ -98,6 +98,11 @@ class Am(FlowCB):
         self.o.add_option('binaryInitialCharacters', 'list', [b'BUFR' , b'GRIB', b'\211PNG'])
         self.o.add_option('AddSMHeader', 'flag' , True)
 
+        self.o.binaryInitialCharacters = [
+            marker.encode(self.o.inputCharset) if isinstance(marker, str) else marker
+            for marker in self.o.binaryInitialCharacters
+        ]
+
         self.host = self.url.netloc.split(':')[0]
         self.port = int(self.url.netloc.split(':')[1])
         self.minnum = 00000
@@ -547,7 +552,7 @@ class Am(FlowCB):
 
                     # Determine if bulletin is binary or not
                     # From sundew source code
-                    if lines[1][:4] in self.o.binaryInitialCharacters:
+                    if self._is_binary_bulletin(lines):
                         binary = 1
                     
                     # Correct the bulletin contents, the Sundew way
@@ -616,3 +621,6 @@ class Am(FlowCB):
                     logger.error(f"Unable to generate bulletin file. Error message: {e}")
 
         return (True, newmsg) 
+
+    def _is_binary_bulletin(self, lines):
+        return lines[1][:4] in self.o.binaryInitialCharacters

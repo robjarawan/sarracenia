@@ -500,7 +500,7 @@ class Poll(FlowCB):
                             logger.error(f"cannot read link {path} message dropped")
                             logger.debug('Exception details: ', exc_info=True)
                             ok=None
-                return ok
+                return [ok] if ok else []
 
         post_relPath = destDir + '/' + remote_file
 

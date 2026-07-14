@@ -164,19 +164,19 @@ class Send_egc_les(FlowCB):
     
                 tn = telnetlib.Telnet(server, port, timeout)
     
-                tn.read_until("username:", timeout)
-                tn.write(user + "\r\n")
-    
-                tn.read_until("password:", timeout)
-                tn.write(password + "\r\n")
-    
-                tn.read_until(">", timeout)
-                tn.write(egc)
-    
-                tn.read_until("Text:", timeout)
-                tn.write(bul)
-    
-                tn.write("quit\r\n")
+                tn.read_until(b"username:", timeout)
+                tn.write((user + "\r\n").encode())
+
+                tn.read_until(b"password:", timeout)
+                tn.write((password + "\r\n").encode())
+
+                tn.read_until(b">", timeout)
+                tn.write(egc.encode())
+
+                tn.read_until(b"Text:", timeout)
+                tn.write(bul.encode())
+
+                tn.write(b"quit\r\n")
     
                 info = tn.read_all()
                 tn.close()
@@ -190,7 +190,7 @@ class Send_egc_les(FlowCB):
                 logger.info(f"file_send_egc_les: egc used: {egc}")
                 logger.info(f"file_send_egc_les: return message: {info}")
     
-                if 'Storing' in info and 'Submitted' in info and 'Reference' in info:
+                if b'Storing' in info and b'Submitted' in info and b'Reference' in info:
                     os.unlink(filepath)
                     new_ok.append(msg)
                 else:

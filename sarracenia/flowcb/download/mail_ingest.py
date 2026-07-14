@@ -83,7 +83,8 @@ class Mail_ingest(FlowCB):
 
                         mailman.select(mailbox='INBOX')
                         resp, data = mailman.search(None, 'ALL')
-                        for index in data[0].split():
+                        indexes = data[0].split()
+                        for index in indexes:
                                 r, d = mailman.fetch(index, '(RFC822)')
                                 msg = d[0][1].decode("utf-8", "ignore") + "\n"
                                 logger.info(f"download_email_ingest downloaded file: {msg['new_dir']}"+'/'+msg['new_file'])
@@ -96,7 +97,7 @@ class Mail_ingest(FlowCB):
                         mailman.expunge()
                         mailman.close()
                         mailman.logout()
-                        return True
+                        return bool(indexes)
                         
                 elif "pop" in protocol:
                         if protocol == "pops":
@@ -151,7 +152,7 @@ class Mail_ingest(FlowCB):
 
                         mailman.quit()
                         #v2 parent.msg.set_parts()-> sr3? msg.updatePaths( self.o, msg['new_dir'], msg['new_file'] )
-                        return True
+                        return found
 
                 else:
                         logger.error("download_email_ingest destination protocol must be one of 'imap/imaps' or 'pop/pops'.")

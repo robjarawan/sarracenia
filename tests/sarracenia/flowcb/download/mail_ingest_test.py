@@ -117,3 +117,40 @@ class Test_MailIngestCredentials:
 
         result = ingest.download(msg)
         assert result is False
+
+
+def test_empty_imap_search_returns_false_after_cleanup():
+    ingest = _make_ingest()
+    ingest.o.delete = False
+    url = 'imaps://user:secret@mail.example.com/'
+    msg = _make_msg(url)
+    ingest.o.credentials = MagicMock()
+    ingest.o.credentials.get.return_value = (True, _make_credential(url))
+
+    with patch('imaplib.IMAP4_SSL') as mock_imap:
+        connection = mock_imap.return_value
+        connection.search.return_value = ('OK', [b''])
+
+        assert ingest.download(msg) is False
+
+    connection.expunge.assert_called_once_with()
+    connection.close.assert_called_once_with()
+    connection.logout.assert_called_once_with()
+
+
+def test_missing_pop_message_returns_false_after_cleanup():
+    ingest = _make_ingest()
+    ingest.o.delete = False
+    url = 'pops://user:secret@mail.example.com/'
+    msg = _make_msg(url)
+    ingest.o.credentials = MagicMock()
+    ingest.o.credentials.get.return_value = (True, _make_credential(url))
+
+    with patch('poplib.POP3_SSL') as mock_pop:
+        connection = mock_pop.return_value
+        connection.list.return_value = ('+OK', [b'1 100'], 100)
+        connection.retr.return_value = ('+OK', [b'Message-ID: <other@example.com>', b'', b'body'], 100)
+
+        assert ingest.download(msg) is False
+
+    connection.quit.assert_called_once_with()

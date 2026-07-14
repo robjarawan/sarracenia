@@ -117,3 +117,27 @@ class Test_MailIngestCredentials:
 
         result = ingest.download(msg)
         assert result is False
+
+
+def test_imap_fetch_keeps_notification_separate_from_body(tmp_path):
+    ingest = _make_ingest()
+    ingest.o.delete = False
+    url = 'imaps://user:secret@mail.example.com/'
+    cred = _make_credential(url)
+    destination = tmp_path / 'message.eml'
+    msg = MagicMock()
+    msg.baseUrl = url
+    values = {'baseUrl': url, 'new_dir': str(tmp_path), 'new_file': destination.name}
+    msg.__getitem__.side_effect = values.__getitem__
+    ingest.o.credentials = MagicMock()
+    ingest.o.credentials.get.return_value = (True, cred)
+
+    with patch('imaplib.IMAP4_SSL') as mock_imap:
+        connection = mock_imap.return_value
+        connection.search.return_value = ('OK', [b'1'])
+        connection.fetch.return_value = ('OK', [(b'1 (RFC822)', b'Subject: test\r\n\r\nbody')])
+
+        assert ingest.download(msg) is True
+
+    assert destination.read_text() == 'Subject: test\n\nbody\n'
+    connection.fetch.assert_called_once_with(b'1', '(RFC822)')

@@ -85,10 +85,10 @@ class Mail_ingest(FlowCB):
                         resp, data = mailman.search(None, 'ALL')
                         for index in data[0].split():
                                 r, d = mailman.fetch(index, '(RFC822)')
-                                msg = d[0][1].decode("utf-8", "ignore") + "\n"
+                                email_message = d[0][1].decode("utf-8", "ignore") + "\n"
                                 logger.info(f"download_email_ingest downloaded file: {msg['new_dir']}"+'/'+msg['new_file'])
                                 with open(msg['new_dir']+'/'+msg['new_file'], 'w') as f:
-                                       f.write(msg)
+                                       f.write(email_message)
                                        f.close()
                                 if self.o.delete :
                                        mailman.store(index, '+FLAGS', '\\Deleted')

@@ -139,6 +139,7 @@ def test_after_accept(tmp_path):
     accumulator.after_accept( worklist )
 
     assert len(worklist.incoming) == 1
+    assert worklist.rejected == [m]
 
     output_message = worklist.incoming[0]
 
@@ -160,8 +161,56 @@ def test_after_accept(tmp_path):
     print(' {datahash=}' )
     splitter.after_accept( worklist )
 
+    assert worklist.rejected == [m, output_message]
     assert datahash == '9e87a9155b446dac46417f548a808c7a'
     assert os.path.isdir(str(tmp_path)+ os.sep + 'FD' )
     assert os.path.isdir(str(tmp_path)+ os.sep + 'FD/CWQQ'  )
     assert os.path.isdir(str(tmp_path)+ os.sep + 'FD/CWQQ/20'  )
     assert os.path.isfile(str(tmp_path)+ os.sep + f'FD/CWQQ/20/FDCN02_CWQQ_282015_AMD_9e87a9155b446dac46417f548a808c7a' )
+
+
+def test_accumulate_does_not_dispose_source_before_output_message_exists(tmp_path, monkeypatch):
+    options = sarracenia.config.default_config()
+    options.batch = 50
+    options.no = 1
+    options.hostname = "hoho8.mydomain.org"
+    options.publishers = [{'baseDir': None, 'broker': 'amqp://localhost', 'baseUrl': "file:/"}]
+    options.pid_filename = str(tmp_path) + os.sep + "myconfig_01.pid"
+    options.wmo00_work_directory = str(tmp_path)
+    options.wmo00_origin_CCCC = 'CYKK'
+    options.post_baseUrl = 'file://'
+
+    accumulator = sarracenia.flowcb.filter.wmo00_accumulate.Wmo00_accumulate(options)
+    worklist = make_worklist()
+    source_message = make_message()
+    worklist.incoming = [source_message]
+    monkeypatch.setattr(sarracenia.Message, 'fromFileData', lambda *args, **kwargs: (_ for _ in ()).throw(OSError()))
+
+    with pytest.raises(OSError):
+        accumulator.after_accept(worklist)
+
+    assert worklist.rejected == []
+    assert worklist.incoming == []
+    assert worklist.failed == [source_message]
+
+
+def test_split_moves_source_to_failed_when_content_read_fails(tmp_path):
+    class UnreadableMessage(sarracenia.Message):
+        def getContent(self, options):
+            raise OSError('source read failed')
+
+    options = sarracenia.config.default_config()
+    options.wmo00_work_directory = str(tmp_path)
+    splitter = sarracenia.flowcb.filter.wmo00_split.Wmo00_split(options)
+    source_message = UnreadableMessage()
+    source_message['baseUrl'] = 'file:'
+    source_message['relPath'] = '/unreadable.wmo'
+    worklist = make_worklist()
+    worklist.incoming = [source_message]
+
+    with pytest.raises(OSError):
+        splitter.after_accept(worklist)
+
+    assert worklist.incoming == []
+    assert worklist.rejected == []
+    assert worklist.failed == [source_message]

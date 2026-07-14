@@ -132,7 +132,22 @@ class Wmo00_accumulate(FlowCB):
         return open(self.accumulated_file,"wb")
 
 
-    def after_accept(self,worklist):
+    def after_accept(self, worklist):
+        source_messages = list(worklist.incoming)
+        source_ids = {id(message) for message in source_messages}
+        try:
+            self._after_accept(worklist)
+        except Exception:
+            worklist.incoming = [message for message in worklist.incoming if id(message) not in source_ids]
+            disposed_ids = {
+                id(message)
+                for messages in (worklist.ok, worklist.rejected, worklist.failed)
+                for message in messages
+            }
+            worklist.failed.extend(message for message in source_messages if id(message) not in disposed_ids)
+            raise
+
+    def _after_accept(self,worklist):
 
         if len(worklist.incoming) == 0:
             return
@@ -148,16 +163,19 @@ class Wmo00_accumulate(FlowCB):
         old_incoming=worklist.incoming
         worklist.incoming=[]
         new_incoming=[]
+        output_sources=[]
         for m in old_incoming:
             logger.info( f" getting: {m['baseUrl']}{m['relPath']} " )
             input_data =m.getContent(self.o)
 
             if len(input_data) < 12:
                 logger.error( f"file only {len(input_data)} bytes long, too small for a valid WMO message" )
+                worklist.rejected.append(m)
                 continue
 
             if len(input_data) > self.o.wmo00_byteCountMax:
                 logger.error( f"files must be smaller than {self.o.wmo00_byteCountMax}" )
+                worklist.rejected.append(m)
                 continue
 
             # 22 is the maximum size of an envelope that might be added to the input if it doesn't have it.
@@ -166,8 +184,10 @@ class Wmo00_accumulate(FlowCB):
                 msg = sarracenia.Message.fromFileData(self.accumulated_file, self.o, os.stat(self.accumulated_file))
                 logger.info( f"accumulated file {self.accumulated_file} written {msg['size']} bytes, {record_no-1} records" )
                 worklist.incoming.append(msg)
+                worklist.rejected.extend(output_sources)
                 output_file=self.open_accumulated_file()
                 output_length=0
+                output_sources=[]
                 record_no=1
 
             # if it starts with SOH already, assume valid, otherwise encapsulate.
@@ -224,6 +244,7 @@ class Wmo00_accumulate(FlowCB):
             output_file.write( output_record )
             output_length += len(input_data)+10
             logger.info( f"appended {len(input_data)} to {self.accumulated_file}, offset now: {output_length} sum: {data_sum}")
+            output_sources.append(m)
             record_no+=1
 
         output_file.close()
@@ -232,6 +253,7 @@ class Wmo00_accumulate(FlowCB):
         if msg['size'] > 0 : 
             logger.info( f"accumulated file {self.accumulated_file} written {msg['size']} bytes, {record_no-1} records" )
             worklist.incoming.append(msg)
+            worklist.rejected.extend(output_sources)
         else:
             logger.debug('empty accumulated file %s being removed and reused.', self.accumulated_file)
             os.unlink( self.accumulated_file )
@@ -247,4 +269,3 @@ class Wmo00_accumulate(FlowCB):
             sf.write( f"{self.thisday} {self.sequence}" )
 
         pass
-

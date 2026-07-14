@@ -62,7 +62,22 @@ class Wmo00_split(FlowCB):
         self.o.add_option(option='wmo00_encapsulate', kind='flag', default_value=True)
         self.o.baseDir=self.o.wmo00_work_directory
 
-    def after_accept(self,worklist):
+    def after_accept(self, worklist):
+        source_messages = list(worklist.incoming)
+        source_ids = {id(message) for message in source_messages}
+        try:
+            self._after_accept(worklist)
+        except Exception:
+            worklist.incoming = [message for message in worklist.incoming if id(message) not in source_ids]
+            disposed_ids = {
+                id(message)
+                for messages in (worklist.ok, worklist.rejected, worklist.failed)
+                for message in messages
+            }
+            worklist.failed.extend(message for message in source_messages if id(message) not in disposed_ids)
+            raise
+
+    def _after_accept(self,worklist):
 
         if len(worklist.incoming) == 0:
             return
@@ -166,3 +181,4 @@ class Wmo00_split(FlowCB):
                 record_count += 1
 
             logger.info( f"done with: {m['baseUrl']}{m['relPath']} records: {record_count}" )
+            worklist.rejected.append(m)

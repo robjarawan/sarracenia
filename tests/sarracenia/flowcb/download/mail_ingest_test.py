@@ -30,6 +30,17 @@ def _make_credential(url_str):
 class Test_MailIngestCredentials:
     """Regression tests for PR #989 / #1677 credential handling in mail_ingest."""
 
+    def test_real_message_uses_mapping_base_url(self):
+        """A real Message provides baseUrl through mapping access, not attributes."""
+        ingest = _make_ingest()
+        msg = sarracenia.Message()
+        msg['baseUrl'] = 'imaps://user:secret@mail.example.com/'
+        ingest.o.credentials = MagicMock()
+        ingest.o.credentials.get.return_value = (False, None)
+
+        assert ingest.download(msg) is False
+        ingest.o.credentials.get.assert_called_once_with(msg['baseUrl'])
+
     def test_password_attribute_does_not_raise(self):
         """Regression: 'urllib.parse.password' AttributeError must not occur.
 

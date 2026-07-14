@@ -41,7 +41,7 @@ class Mail_ingest(FlowCB):
         def download(self, msg) -> bool:
 
                 #ok, details = self.o.credentials.get(parent.msg.notice.split()[1])
-                ok, details = self.o.credentials.get(msg.baseUrl)
+                ok, details = self.o.credentials.get(msg['baseUrl'])
                 if ok: 
                         setting         = details.url
                         user            = setting.username

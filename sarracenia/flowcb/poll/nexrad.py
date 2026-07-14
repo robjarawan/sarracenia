@@ -41,6 +41,7 @@ class Nexrad(FlowCB):
 
         super().__init__(options,logger)
         self.o.add_option('poll_nexrad_day', 'str', "")
+        self.metrics = {'transferRxBytes': 0}
         self.minutetracker = datetime.datetime.utcnow() + datetime.timedelta(
             minutes=-7)
 

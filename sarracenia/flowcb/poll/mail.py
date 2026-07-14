@@ -45,6 +45,7 @@ class Mail(Poll):
     def __init__(self, options):
 
         self.o = options
+        self.metrics = {'transferRxBytes': 0}
         logger.info("poll_email_ingest init")
 
     def poll(self):

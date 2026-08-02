@@ -90,3 +90,52 @@ class Test_SftpConnectCleanup:
 
         for m in mock_ssh_instances:
             m.close.assert_called_once()
+
+
+class Test_AccelScpKeyfile:
+    """accelScpCommand must pass the ssh key resolved by credentials() to scp.
+
+    Regression test for the accelerated transfer ignoring ssh_keyfile, so a
+    non-default key name only worked by hard coding -i in the command.
+    """
+
+    def test_keyfile_option_expands_when_key_in_use(self, sftp_options):
+        xfer = Sftp('sftp', sftp_options)
+        xfer.ssh_keyfile = '/home/sarra/.ssh/id_ecdsa_for_specific_client'
+        assert xfer.accelKeyfileOption() == '-i /home/sarra/.ssh/id_ecdsa_for_specific_client'
+
+    def test_keyfile_option_is_empty_without_a_key(self, sftp_options):
+        xfer = Sftp('sftp', sftp_options)
+        xfer.ssh_keyfile = None
+        assert xfer.accelKeyfileOption() == ''
+
+    def test_ssh_keyfile_defaults_to_none_before_credentials_run(self, sftp_options):
+        """credentials() may fail; the accelerated path must not raise AttributeError."""
+        xfer = Sftp('sftp', sftp_options)
+        assert xfer.ssh_keyfile is None
+        assert xfer.accelKeyfileOption() == ''
+
+    def test_default_command_carries_the_key(self, sftp_options):
+        """The shipped default must substitute to a command scp can authenticate with."""
+        xfer = Sftp('sftp', sftp_options)
+        xfer.ssh_keyfile = '/key/path'
+        cmd = sftp_options.accelScpCommand.replace('%k', xfer.accelKeyfileOption())
+        cmd = cmd.replace('%s', 'user@host:/remote/f').replace('%d', './f').split()
+        assert cmd == ['/usr/bin/scp', '-i', '/key/path', 'user@host:/remote/f', './f']
+
+    def test_no_key_leaves_no_empty_argument(self, sftp_options):
+        """An empty %k must not leave a stray '' in the argument list."""
+        xfer = Sftp('sftp', sftp_options)
+        xfer.ssh_keyfile = None
+        cmd = sftp_options.accelScpCommand.replace('%k', xfer.accelKeyfileOption())
+        cmd = cmd.replace('%s', 'user@host:/remote/f').replace('%d', './f').split()
+        assert cmd == ['/usr/bin/scp', 'user@host:/remote/f', './f']
+
+    def test_command_without_the_token_is_unchanged(self, sftp_options):
+        """Configs that already override accelScpCommand must keep working."""
+        xfer = Sftp('sftp', sftp_options)
+        xfer.ssh_keyfile = '/key/path'
+        legacy = '/usr/bin/scp -i /hard/coded %s %d'
+        cmd = legacy.replace('%k', xfer.accelKeyfileOption())
+        cmd = cmd.replace('%s', 'user@host:/remote/f').replace('%d', './f').split()
+        assert cmd == ['/usr/bin/scp', '-i', '/hard/coded', 'user@host:/remote/f', './f']

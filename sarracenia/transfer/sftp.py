@@ -40,7 +40,11 @@ class Sftp(Transfer):
     SecSH File Transfer Protocol (SFTP)  ( https://filezilla-project.org/specs/draft-ietf-secsh-filexfer-02.txt )
     Sarracenia transfer protocol subclass supports/uses additional custom options:
 
-    * accelScpCommand (default: '/usr/bin/scp %s %d' )
+    * accelScpCommand (default: '/usr/bin/scp %k %s %d' )
+
+    In accelScpCommand, %s is the source, %d the destination, and %k expands to
+    '-i <path>' for the ssh key resolved from credentials.conf or ~/.ssh/config,
+    or to nothing when no key is in use.
 
     The module uses the paramiko library for python SecSH support ( https://www.paramiko.org/ )
     """
@@ -50,7 +54,7 @@ class Sftp(Transfer):
 
         logger.debug("sr_sftp __init__")
 
-        self.o.add_option("accelScpCommand", "str", "/usr/bin/scp %s %d")
+        self.o.add_option("accelScpCommand", "str", "/usr/bin/scp %k %s %d")
         # sftp command times out after 20 secs
         # this setting is different from the computed timeout (protocol)
 
@@ -58,6 +62,9 @@ class Sftp(Transfer):
         self.sftp = None
         self.ssh = None
         self.seek = True
+        # set by credentials(), but referenced by the accelerated commands, which
+        # must not raise AttributeError when credential resolution failed.
+        self.ssh_keyfile = None
 
         self.batch = 0
         self.connected = False
@@ -387,6 +394,18 @@ class Sftp(Transfer):
 
         return rw_length
 
+    def accelKeyfileOption(self) -> str:
+        """
+           Expansion for %k in accelScpCommand: the -i option naming the ssh key
+           resolved by credentials(), or an empty string when no key is in use.
+
+           credentials() takes the key from credentials.conf, falling back to the
+           IdentityFile in ~/.ssh/config, so both reach the accelerated command.
+        """
+        if not self.ssh_keyfile:
+            return ''
+        return '-i ' + self.ssh_keyfile
+
     def getAccelerated(self, msg, remote_file, local_file, length=0, remote_offset=0, exactLength=False):
 
         base_url = msg['baseUrl'].replace('sftp://', '')
@@ -396,7 +415,8 @@ class Sftp(Transfer):
         arg1 = arg1.replace(' ', '\\ ')
         arg2 = '.' + os.sep + local_file
 
-        cmd = self.o.accelScpCommand.replace('%s', arg1)
+        cmd = self.o.accelScpCommand.replace('%k', self.accelKeyfileOption())
+        cmd = cmd.replace('%s', arg1)
         cmd = cmd.replace('%d', arg2).split()
         logger.info(f"accel_sftp:  {' '.join(cmd)}")
         try:
@@ -551,7 +571,8 @@ class Sftp(Transfer):
         arg2 = arg2.replace(' ', '\\ ')
         arg1 = '.' + os.sep + local_file
 
-        cmd = self.o.accelScpCommand.replace('%s', arg1)
+        cmd = self.o.accelScpCommand.replace('%k', self.accelKeyfileOption())
+        cmd = cmd.replace('%s', arg1)
         cmd = cmd.replace('%d', arg2).split()
 
         logger.info(f"accel_sftp:  {' '.join(cmd)}")

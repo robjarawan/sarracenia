@@ -29,6 +29,8 @@ def exec_rabbitmqadmin(url, options, simulate=False):
        invoke rabbitmqadmin using a sub-process, with the given options.
     """
 
+    cmdlst = []
+
     try:
         command = rabbitmqadmin
         command += ' --host \'' + url.hostname

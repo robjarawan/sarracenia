@@ -1,5 +1,6 @@
 metpx-sr3 (3.03.01) unstable; urgency=medium
 
+  * Keep failed source deliveries unacknowledged while retry persistence is unavailable.
   * fix #1760 prevent resource library from running on Windows
   * fix #1762 AMQP prefetch is not invariant
 

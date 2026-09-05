@@ -202,22 +202,27 @@ class RedisQueue():
             logger.debug("Error information: ", exc_info=True)
             return None
 
+        if type(msg) is not sarracenia.Message:
+            logger.error("invalid item in retry list (not decoded as sarracenia.Message): %r", message)
+            return None
+
         return msg
 
     def _msgToJSON(self, message):
         return jsonpickle.encode(message)
 
     def _lpop(self, queue):
+        while True:
+            raw_msg = self.redis.lpop(queue)
 
-        raw_msg = self.redis.lpop(queue)
-          
-        if raw_msg == None:
-            return None
+            if raw_msg is None:
+                return None
 
-        msg = self._msgFromJSON(raw_msg)
-        logger.debug('lpop from list %s %s', queue, msg)
+            msg = self._msgFromJSON(raw_msg)
+            logger.debug('lpop from list %s %s', queue, msg)
 
-        return msg
+            if msg is not None:
+                return msg
 
 
     # ----------- Public Methods -----------

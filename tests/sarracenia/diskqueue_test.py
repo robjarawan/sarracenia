@@ -358,7 +358,9 @@ def test_on_housekeeping__replace_failure_preserves_new(tmp_path):
         original_new = source.read()
 
     with patch('sarracenia.diskqueue.os.replace',
-               side_effect=OSError("injected replace failure")):
+               side_effect=OSError("injected replace failure")), \
+            patch('sarracenia.diskqueue.os.rename',
+                  side_effect=OSError("injected rename failure")):
         dq.on_housekeeping()
 
     assert dq.msg_count == 0

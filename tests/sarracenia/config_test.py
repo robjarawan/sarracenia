@@ -593,3 +593,48 @@ def test_nodupe_ttl_parsing():
     options.parse_line("subscribe", "nodupettl", "subscribe/nodupettl", 1, "nodupe_ttl 100")
     options.finalize()
     assert(options.nodupe_ttl == 100)
+
+
+@pytest.mark.parametrize(
+    ('configured_interval', 'expected_when', 'expected_interval'),
+    [
+        ('12h', 's', 43200),
+        ('1d', 'midnight', 1),
+        ('2d', 'midnight', 2),
+    ],
+)
+def test_cfglogs_uses_24_hour_day(configured_interval, expected_when, expected_interval, tmp_path, mocker):
+    options = copy.deepcopy(sarracenia.config.default_config())
+    options.parse_line(
+        'subscribe',
+        'rotation',
+        'subscribe/rotation',
+        1,
+        f'logRotateInterval {configured_interval}',
+    )
+    options.action = 'start'
+    options.logStdout = False
+    options.statehost = False
+
+    metrics_path = str(tmp_path / 'metrics.json')
+    log_path = str(tmp_path / 'rotation.log')
+    mocker.patch.object(sarracenia.config, 'get_metrics_filename', return_value=metrics_path)
+    mocker.patch.object(sarracenia.config, 'get_log_filename', return_value=log_path)
+    mocker.patch.object(sarracenia.config.logging, 'getLogger', return_value=mocker.MagicMock())
+    mocker.patch.object(sarracenia.config.os, 'chmod')
+    mocker.patch.object(sarracenia.config.os, 'dup2')
+    handler = mocker.MagicMock()
+    handler_constructor = mocker.patch.object(
+        sarracenia.config.sarracenia.instance,
+        'RedirectedTimedRotatingFileHandler',
+        return_value=handler,
+    )
+
+    sarracenia.config.cfglogs(options, 'subscribe', 'rotation', 'INFO', 1)
+
+    handler_constructor.assert_called_once_with(
+        log_path,
+        when=expected_when,
+        interval=expected_interval,
+        backupCount=options.logRotateCount,
+    )

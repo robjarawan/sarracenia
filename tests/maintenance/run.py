@@ -155,6 +155,49 @@ def queue_state(connection, name):
             channel.close()
 
 
+def cleanup_resources(connection, queues, exchange):
+    """Attempt every fixture cleanup operation, then raise the first failure."""
+    failures = []
+    channel = None
+    try:
+        channel = connection.channel()
+    except Exception as error:
+        failures.append(('open cleanup channel', error, error.__traceback__))
+
+    if channel is not None:
+        for queue in queues:
+            try:
+                channel.queue_delete(queue)
+            except Exception as error:
+                failures.append(('delete queue ' + queue, error,
+                                 error.__traceback__))
+        try:
+            channel.exchange_delete(exchange)
+        except Exception as error:
+            failures.append(('delete exchange ' + exchange, error,
+                             error.__traceback__))
+        try:
+            channel.close()
+        except Exception as error:
+            failures.append(('close cleanup channel', error,
+                             error.__traceback__))
+
+    try:
+        connection.close()
+    except Exception as error:
+        failures.append(('close cleanup connection', error,
+                         error.__traceback__))
+
+    for operation, error, traceback in failures:
+        logging.error('fixture cleanup failed while trying to %s: %s',
+                      operation, error,
+                      exc_info=(type(error), error, traceback))
+
+    if failures:
+        error = failures[0][1]
+        raise error.with_traceback(failures[0][2])
+
+
 def run(root, count, legacy_count):
     import amqp
     import sarracenia
@@ -167,9 +210,12 @@ def run(root, count, legacy_count):
     queues = [prefix + '-moth', prefix + '-flow']
     connection = amqp.Connection('127.0.0.1', userid='guest', password='guest',
                                  virtual_host='/', connect_timeout=15, read_timeout=15, write_timeout=15)
-    connection.connect()
     configs = []
+    primary_error = None
+    primary_traceback = None
+    result = None
     try:
+        connection.connect()
         configs, expected = fixtures(root, prefix, queues)
         cli('--dangerWillRobinson', str(len(configs)), 'declare', *configs)
         for queue in queues:
@@ -197,18 +243,27 @@ def run(root, count, legacy_count):
             assert queue_state(connection, queue) is None, 'cleanup left queue ' + queue
         cli('--dangerWillRobinson', str(len(configs)), 'remove', *configs)
         assert not list((root / 'config' / 'sr3').glob('*/*.conf')), 'remove left configurations behind'
-        print(json.dumps({'result': 'PASS', 'received': received, 'downloaded': sorted(actual),
-                          'configurations_removed': len(configs), 'queues_removed': len(queues)}), flush=True)
+        result = {'result': 'PASS', 'received': received,
+                  'downloaded': sorted(actual),
+                  'configurations_removed': len(configs),
+                  'queues_removed': len(queues)}
+    except BaseException as error:
+        primary_error = error
+        primary_traceback = error.__traceback__
     finally:
         # Only fixture-owned resources are touched, including on assertion/timeout failure.
-        channel = connection.channel()
         try:
-            for queue in queues:
-                channel.queue_delete(queue)
-            channel.exchange_delete(prefix)
-        finally:
-            channel.close()
-            connection.close()
+            cleanup_resources(connection, queues, prefix)
+        except Exception as cleanup_error:
+            if primary_error is None:
+                raise
+            logging.error('cleanup failed after the fixture had already failed: %s',
+                          cleanup_error)
+
+    if primary_error is not None:
+        raise primary_error.with_traceback(primary_traceback)
+
+    print(json.dumps(result), flush=True)
 
 
 def main():

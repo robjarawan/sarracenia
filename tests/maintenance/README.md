@@ -92,10 +92,13 @@ nor downloaded examples participate in this test.
 
 ## Cleanup and rollback
 
-The script removes its private files and only its uniquely named broker resources,
-including after an assertion failure. CLI and Flow subprocesses have deadlines;
-the workflow also has a ten-minute timeout. Stop/remove the dedicated broker after
-the runs:
+The script attempts every cleanup operation for its uniquely named broker
+resources and always attempts to close the connection, including after an
+assertion failure. A cleanup-only failure is fatal, and a prior fixture failure
+remains the reported failure if cleanup also has a problem. The `PASS` result is
+printed only after cleanup succeeds. CLI and Flow subprocesses have deadlines;
+the workflow also has a ten-minute timeout. If broker cleanup itself fails,
+stopping and removing the disposable broker is the final fallback:
 
 ```bash
 docker stop sr-maintenance-check-broker

@@ -1971,7 +1971,7 @@ class Flow:
                 except Exception as ex:
                     logger.warning(f"making {msg['new_dir']}: {ex}")
                     logger.debug('Exception details:', exc_info=True)
-                    self.reject(msg, 422, f"cannot create directory {msg['new_dir']} to put file in it." )
+                    self.worklist.failed.append(msg)
                     continue
             
             # another try is needed in case something deletes new_dir before we chdir to it

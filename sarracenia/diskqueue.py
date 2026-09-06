@@ -307,6 +307,11 @@ class DiskQueue():
         if 'parts' in message:
             cache_key += ' ' + message['parts']
 
+        if 'publisher_identity' in message:
+            cache_key += ' ' + jsonpickle.encode(message['publisher_identity'])
+        elif 'publisher_index' in message:
+            cache_key += ' ' + jsonpickle.encode(message['publisher_index'])
+
         if cache_key in self.retry_cache: return True
         self.retry_cache[cache_key] = True
         return False

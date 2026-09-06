@@ -2,7 +2,7 @@ import pytest
 from tests.conftest import *
 from unittest.mock import patch, MagicMock
 
-import jsonpickle, os
+import copy, jsonpickle, os
 
 from sarracenia.diskqueue import DiskQueue
 from sarracenia import Message as SR3Message
@@ -108,6 +108,30 @@ def test_in_cache(tmp_path):
 
     # Checking if it's there actually adds it, so checking it again right after should return True
     assert download_retry.in_cache(message) == True
+
+def test_in_cache_preserves_publisher_obligations(tmp_path):
+    BaseOptions = Options()
+    BaseOptions.pid_filename = str(tmp_path) + os.sep + "pidfilename.txt"
+    post_retry = DiskQueue(BaseOptions, 'post_retry')
+
+    first = make_message()
+    first['publisher_identity'] = {'broker': 'amqp://first', 'exchange': ['first']}
+    second = copy.deepcopy(first)
+    second['publisher_identity'] = {'broker': 'amqp://second', 'exchange': ['second']}
+    post_retry.retry_cache = {}
+
+    assert post_retry.in_cache(first) == False
+    assert post_retry.in_cache(second) == False
+    assert post_retry.in_cache(copy.deepcopy(second)) == True
+
+    first.pop('publisher_identity')
+    second.pop('publisher_identity')
+    first['publisher_index'] = 0
+    second['publisher_index'] = 1
+    post_retry.retry_cache = {}
+
+    assert post_retry.in_cache(first) == False
+    assert post_retry.in_cache(second) == False
 
 def test_needs_requeuing(tmp_path):
     BaseOptions = Options()
@@ -533,4 +557,3 @@ def test_msg_get_from_file__all_corrupted(tmp_path):
 
     assert fp_out is None
     assert msg is None
-

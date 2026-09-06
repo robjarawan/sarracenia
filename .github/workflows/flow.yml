@@ -2,7 +2,7 @@ name: Flow Tests / AMQP
 
 on:
   pull_request:
-    types: [opened, edited, reopened]
+    types: [opened, edited, reopened, synchronize]
   push:
     branches:
       - development

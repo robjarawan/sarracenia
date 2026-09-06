@@ -71,3 +71,52 @@ def test_msg_rejected_when_sundew_extension_already_present():
     assert(len(flow.worklist.incoming) == 0)
     assert(len(flow.worklist.rejected) == 0)
     assert(msg not in flow.worklist.incoming)
+
+
+@pytest.mark.parametrize('preceding_rule', [
+    None,
+    'reject file:/root/elsewhere/.*',
+    'accept file:/root/elsewhere/.*',
+])
+def test_rename_old_path_checks_later_matching_mask(preceding_rule):
+    """A rename out of an accepted path must remove the old local copy."""
+    lines = ['accept file:/root/kept/.*']
+    if preceding_rule:
+        lines.insert(0, preceding_rule)
+    options = __make_fake_config(lines=lines)
+
+    flow = sarracenia.flow.Flow(options)
+    flow.have_vip = True
+    msg = sarracenia.Message()
+    msg['pubTime'] = '20260101T010203.123'
+    msg['baseUrl'] = 'file:/root'
+    msg['relPath'] = 'outside/item.bin'
+    msg['fileOp'] = {'rename': 'kept/item.bin'}
+    flow.worklist.incoming.append(msg)
+
+    flow.filter()
+
+    assert msg.get('renameUnlink') is True
+    assert msg in flow.worklist.incoming
+
+
+def test_rename_old_path_stops_at_first_matching_reject():
+    """A matching reject must take precedence over a later accept."""
+    options = __make_fake_config(lines=[
+        'reject file:/root/kept/.*',
+        'accept file:/root/kept/.*',
+    ])
+
+    flow = sarracenia.flow.Flow(options)
+    flow.have_vip = True
+    msg = sarracenia.Message()
+    msg['pubTime'] = '20260101T010203.123'
+    msg['baseUrl'] = 'file:/root'
+    msg['relPath'] = 'outside/item.bin'
+    msg['fileOp'] = {'rename': 'kept/item.bin'}
+    flow.worklist.incoming.append(msg)
+
+    flow.filter()
+
+    assert 'renameUnlink' not in msg
+    assert msg not in flow.worklist.incoming

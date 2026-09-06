@@ -1058,11 +1058,11 @@ class Flow:
                         break
                     matches = mask_regexp.match(urlToMatch)
                     if matches:
-                            m[ '_matches'] = matches
-                            m['_mask_index'] = mask_index
-                            m['_deleteOnPost'] |= set(['_matches', '_mask_index'])
-                            oldname_matched = accepting
-                    break
+                        m[ '_matches'] = matches
+                        m['_mask_index'] = mask_index
+                        m['_deleteOnPost'] |= set(['_matches', '_mask_index'])
+                        oldname_matched = accepting
+                        break
 
             url = self.o.variableExpansion(m['baseUrl'], m)
             if (m['baseUrl'][-1] == '/') or (len(m['relPath']) > 0 and (m['relPath'][0] == '/')):

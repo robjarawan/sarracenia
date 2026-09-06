@@ -6,8 +6,8 @@
 import logging
 
 import sarracenia.moth
-from sarracenia.config.publisher import publisher_identity
 from sarracenia.flowcb import FlowCB
+from sarracenia.publisher import publisher_identity
 
 logger = logging.getLogger(__name__)
 

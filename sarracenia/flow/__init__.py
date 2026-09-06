@@ -31,7 +31,7 @@ from mimetypes import guess_type
 # end v2 subscriber
 
 from sarracenia.featuredetection import features
-from sarracenia.config.publisher import publisher_identity
+from sarracenia.publisher import publisher_identity
 
 if features['reassembly']['present']:
     import sarracenia.blockmanifest

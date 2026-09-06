@@ -5,6 +5,9 @@ All protocol publishers are local recording fixtures.
 """
 
 import copy
+from pathlib import Path
+import subprocess
+import sys
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -89,6 +92,24 @@ def worklist(**items):
 def poster(cfg, recording_publishers):
     with patch('sarracenia.moth.Moth.pubFactory', side_effect=recording_publishers):
         return Poster(cfg)
+
+
+@pytest.mark.parametrize('statement', [
+    'import sarracenia.flow',
+    'from sarracenia.flow.subscribe import Subscribe',
+])
+def test_flow_import_does_not_require_config_preload(statement):
+    checkout = Path(__file__).resolve().parents[4]
+
+    completed = subprocess.run(
+        [sys.executable, '-c', statement],
+        cwd=str(checkout),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        universal_newlines=True,
+    )
+
+    assert completed.returncode == 0, completed.stdout
 
 
 def persist_and_reopen(cfg, msg, name):

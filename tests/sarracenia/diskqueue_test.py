@@ -344,6 +344,7 @@ def test_diskqueue(tmp_path, caplog):
     assert len(dq) == 1
     assert dq.msg_count_new == 0
     assert dq.msg_count == 1
+    assert dq.complete(len(got))
 
     # try running housekeeping again
     dq.on_housekeeping()
@@ -380,6 +381,7 @@ def test_diskqueue(tmp_path, caplog):
     assert len(dq) == 2
     assert dq.msg_count_new == 2
     assert dq.msg_count == 0
+    assert dq.complete(len(got))
 
     # now housekeeping can move new msgs to regular file
     dq.on_housekeeping()
@@ -533,4 +535,3 @@ def test_msg_get_from_file__all_corrupted(tmp_path):
 
     assert fp_out is None
     assert msg is None
-

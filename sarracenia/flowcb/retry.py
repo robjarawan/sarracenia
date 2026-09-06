@@ -81,6 +81,7 @@ class Retry(FlowCB):
         if qty <= 0: return (True, [])
 
         message_list = self.download_retry.get(qty)
+        dequeued_count = len(message_list)
 
         # eliminate calculated values so it is refiltered from scratch.
         for m in message_list:
@@ -93,6 +94,9 @@ class Retry(FlowCB):
             self.__set_isRetry(m)
 
         message_list = self.__filter_by_retry_count(message_list)
+
+        self.__track_inflight(self.download_retry, 'download_retry_inflight',
+                              dequeued_count)
 
         return (True, message_list)
 
@@ -119,6 +123,7 @@ class Retry(FlowCB):
             return
 
         mlist = self.download_retry.get(qty)
+        dequeued_count = len(mlist)
 
         for m in mlist:
             self.__set_isRetry(m)
@@ -128,6 +133,8 @@ class Retry(FlowCB):
         #logger.debug("loading from %s: qty=%d ... got: %d " % (self.download_retry_name, qty, len(mlist)))
         if len(mlist) > 0:
             worklist.incoming.extend(mlist)
+        self.__track_inflight(self.download_retry, 'download_retry_inflight',
+                              dequeued_count)
 
     def after_work(self, worklist) -> None:
         """
@@ -144,6 +151,9 @@ class Retry(FlowCB):
             logger.debug('putting %s messages into %s', len(to_retry), self.download_retry_name)
             self.download_retry.put(to_retry)
             worklist.failed = []
+
+        self.__complete_inflight(self.download_retry,
+                                 'download_retry_inflight')
 
         if len(self.post_retry) < 1:
             return
@@ -165,6 +175,8 @@ class Retry(FlowCB):
         logger.debug('loading from %s: qty=%s ... got: %s', self.post_retry_name, qty, len(mlist))
         if len(mlist) > 0:
             worklist.ok.extend(mlist)
+        self.__track_inflight(self.post_retry, 'post_retry_inflight',
+                              len(mlist))
 
     def after_post(self, worklist) -> None:
         """
@@ -179,6 +191,7 @@ class Retry(FlowCB):
         to_retry = self.__filter_by_retry_count(worklist.failed)
 
         self.post_retry.put(to_retry)
+        self.__complete_inflight(self.post_retry, 'post_retry_inflight')
 
     def metricsReport(self) -> dict:
         """Returns the number of messages in the download_retry and post_retry queues.
@@ -205,6 +218,9 @@ class Retry(FlowCB):
 
     def on_start(self) -> None:
 
+        self.download_retry_inflight = 0
+        self.post_retry_inflight = 0
+
         if self.o.retry_driver == 'redis':
             from sarracenia.redisqueue import RedisQueue
             self.download_retry = RedisQueue(self.o, 'work_retry')
@@ -221,6 +237,18 @@ class Retry(FlowCB):
     def on_stop(self) -> None:
         self.download_retry.close()
         self.post_retry.close()
+
+    def __track_inflight(self, queue, attribute, message_count) -> None:
+        if message_count <= 0 or not hasattr(queue, 'complete'):
+            return
+        setattr(self, attribute, getattr(self, attribute) + message_count)
+
+    def __complete_inflight(self, queue, attribute) -> None:
+        message_count = getattr(self, attribute)
+        if message_count <= 0 or not hasattr(queue, 'complete'):
+            return
+        if queue.complete(message_count):
+            setattr(self, attribute, 0)
 
     def __set_isRetry(self, msg):
         if '_isRetry' not in msg or ('_isRetry' in msg and type(msg['_isRetry']) != int):

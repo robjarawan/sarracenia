@@ -112,6 +112,10 @@ class DiskQueue():
         # msg_count is the number of messages available for retry in this interval
         self.msg_count = 0
 
+        # inflight_count is the number of messages returned to the caller whose
+        # processing outcome has not been recorded yet.
+        self.inflight_count = 0
+
         # msg_count_new is the number of messages added for retry in this interval
         #   ... new messages will only be available in the next interval.
         self.msg_count_new = 0
@@ -152,6 +156,7 @@ class DiskQueue():
         if os.path.exists(self.queue_file):
             os.unlink(self.queue_file)
         self.msg_count = 0
+        self.inflight_count = 0
 
     def close(self):
         """
@@ -176,6 +181,7 @@ class DiskQueue():
         self.queue_fp = None
         self.msg_count = 0
         self.msg_count_new = 0
+        self.inflight_count = 0
 
     def _count_msgs(self, file_path) -> int:
         """Count the number of messages (lines) in the queue file. This should be used only when opening an existing
@@ -250,12 +256,9 @@ class DiskQueue():
             # if no message (and new or state file there)
             # we wait for housekeeping to present retry messages
             if not message:
-                try:
-                    os.unlink(self.queue_file)
-                except Exception:
-                    pass
-                self.queue_fp = None
                 self.msg_count = 0
+                if self.inflight_count == 0:
+                    self._remove_queue_file()
                 #logger.debug("MG DEBUG retry get return None")
                 break
 
@@ -271,16 +274,51 @@ class DiskQueue():
             ml.append(message)
             count += 1
             self.msg_count -= 1
+            self.inflight_count += 1
 
-        # after getting the last message from the file, close it
-        if self.msg_count == 0:
-            try:
-                os.unlink(self.queue_file)
-            except Exception:
-                pass
-            self.queue_fp = None
+        # A final batch remains in the queue file until the caller confirms
+        # that processing completed or that failures were safely requeued.
+        if self.msg_count == 0 and self.inflight_count == 0:
+            self._remove_queue_file()
 
         return ml
+
+    def _remove_queue_file(self) -> bool:
+        """Close and remove the current queue file when it is safe to retire."""
+        try:
+            if self.queue_fp is not None:
+                self.queue_fp.close()
+        except Exception as err:
+            logger.debug("queue_fp close: %s", err)
+        self.queue_fp = None
+
+        try:
+            os.unlink(self.queue_file)
+        except FileNotFoundError:
+            return True
+        except Exception as err:
+            logger.warning("could not remove completed retry queue %s: %s",
+                           self.queue_file, err)
+            return False
+        return True
+
+    def complete(self, message_count) -> bool:
+        """Record completed messages and retire an empty queue file.
+
+        The caller invokes this only after each returned message has either
+        completed or been written back to a retry queue.
+        """
+        if message_count < 0 or message_count > self.inflight_count:
+            raise ValueError("cannot complete %s messages with %s in flight" %
+                             (message_count, self.inflight_count))
+
+        remaining = self.inflight_count - message_count
+        if remaining == 0 and self.msg_count == 0:
+            if not self._remove_queue_file():
+                return False
+
+        self.inflight_count = remaining
+        return True
 
     def in_cache(self, message) -> bool:
         """
@@ -384,7 +422,8 @@ class DiskQueue():
 
         # finish retry before reshuffling all retries entries
 
-        if (os.path.isfile(self.queue_file) and self.queue_fp != None) or self.msg_count != 0:
+        if (os.path.isfile(self.queue_file) and self.queue_fp != None) \
+                or self.msg_count != 0 or self.inflight_count != 0:
             logger.info(f"still {self.msg_count} messages in {self.name} list. Resuming retries with {self.queue_file}")
             return
 

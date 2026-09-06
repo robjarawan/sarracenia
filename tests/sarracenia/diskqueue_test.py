@@ -535,3 +535,205 @@ def test_msg_get_from_file__all_corrupted(tmp_path):
 
     assert fp_out is None
     assert msg is None
+
+
+@pytest.mark.parametrize("already_inflight", [False, True])
+def test_get_rolls_back_only_the_failed_batch(tmp_path, monkeypatch,
+                                                already_inflight):
+    """A mid-read error cannot create unowned in-flight queue records."""
+    options = Options()
+    options.pid_filename = str(tmp_path / "pid")
+    queue = DiskQueue(options, "atomic_get")
+    messages = [make_message() for _ in range(3)]
+    for index, message in enumerate(messages):
+        message["relPath"] = "atomic-%d" % index
+    queue.put(messages)
+    queue.on_housekeeping()
+
+    owned = queue.get(1) if already_inflight else []
+    initial_available = queue.msg_count
+    initial_inflight = queue.inflight_count
+    real_read = queue.msg_get_from_file
+    calls = 0
+
+    def fail_second_read(fp, path):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError("synthetic retry read failure")
+        return real_read(fp, path)
+
+    monkeypatch.setattr(queue, "msg_get_from_file", fail_second_read)
+    with pytest.raises(OSError, match="synthetic retry read failure"):
+        queue.get(2)
+
+    assert queue.msg_count == initial_available
+    assert queue.inflight_count == initial_inflight
+
+    monkeypatch.setattr(queue, "msg_get_from_file", real_read)
+    remaining = queue.get(initial_available)
+    assert len(remaining) == initial_available
+    assert {message["relPath"] for message in owned + remaining} == {
+        "atomic-0", "atomic-1", "atomic-2"
+    }
+    assert queue.complete(len(owned) + len(remaining))
+    queue.close()
+
+
+@pytest.mark.parametrize("failure_point", ["write", "after_prefix", "flush"])
+def test_put_rolls_back_partial_append(tmp_path, failure_point):
+    """Retrying a failed append starts at the last complete record boundary."""
+    options = Options()
+    options.pid_filename = str(tmp_path / "pid")
+    queue = DiskQueue(options, "atomic_put")
+    first = make_message()
+    first["relPath"] = "already-persisted"
+    second = make_message()
+    second["relPath"] = "failed-attempt"
+    third = make_message()
+    third["relPath"] = "same-failed-attempt"
+    queue.put([first])
+    initial_size = os.path.getsize(queue.new_path)
+
+    class FailingWriter:
+
+        def __init__(self, wrapped):
+            self.wrapped = wrapped
+            self.wrote_current_batch = False
+            self.write_calls = 0
+
+        def __getattr__(self, name):
+            return getattr(self.wrapped, name)
+
+        def write(self, value):
+            self.write_calls += 1
+            if failure_point == "write" or (failure_point == "after_prefix"
+                                             and self.write_calls == 2):
+                self.wrapped.write(value[:len(value) // 2])
+                self.wrapped.flush()
+                raise OSError("synthetic partial write")
+            result = self.wrapped.write(value)
+            self.wrote_current_batch = True
+            return result
+
+        def flush(self):
+            if failure_point == "flush" and self.wrote_current_batch:
+                self.wrapped.flush()
+                raise OSError("synthetic flush failure")
+            return self.wrapped.flush()
+
+        def close(self):
+            return self.wrapped.close()
+
+    queue.new_fp = FailingWriter(queue.new_fp)
+    with pytest.raises(OSError, match="synthetic"):
+        queue.put([second, third])
+
+    assert queue.msg_count_new == 1
+    assert os.path.getsize(queue.new_path) == initial_size
+    assert queue.new_fp is None
+
+    queue.put([second, third])
+    queue.on_housekeeping()
+    recovered = queue.get(3)
+    assert [message["relPath"] for message in recovered] == [
+        "already-persisted", "failed-attempt", "same-failed-attempt"
+    ]
+    assert queue.complete(3)
+    queue.close()
+
+
+def test_housekeeping_keeps_failed_append_rollback_blocked(tmp_path,
+                                                            monkeypatch):
+    """Housekeeping cannot expose a prefix from an ambiguous failed append."""
+    options = Options()
+    options.pid_filename = str(tmp_path / "pid")
+    queue = DiskQueue(options, "failed_append_rollback")
+    messages = [make_message(), make_message()]
+    messages[0]["relPath"] = "complete-prefix"
+    messages[1]["relPath"] = "torn-record"
+
+    class PartialWriter:
+
+        def __init__(self, wrapped):
+            self.wrapped = wrapped
+            self.write_calls = 0
+
+        def __getattr__(self, name):
+            return getattr(self.wrapped, name)
+
+        def write(self, value):
+            self.write_calls += 1
+            if self.write_calls == 2:
+                self.wrapped.write(value[:len(value) // 2])
+                self.wrapped.flush()
+                raise OSError("synthetic partial write")
+            return self.wrapped.write(value)
+
+        def close(self):
+            return self.wrapped.close()
+
+    queue.new_fp = open(queue.new_path, 'a')
+    queue.new_fp = PartialWriter(queue.new_fp)
+    real_open = open
+
+    def fail_rollback(path, mode='r', *args, **kwargs):
+        if path == queue.new_path and mode == 'r+b':
+            raise OSError("synthetic rollback failure")
+        return real_open(path, mode, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.open", fail_rollback)
+    with pytest.raises(OSError, match="synthetic partial write"):
+        queue.put(messages)
+
+    assert queue.append_rollback_failed
+    assert queue.msg_count == 0
+    assert queue.msg_count_new == 0
+
+    queue.on_housekeeping()
+
+    assert queue.append_rollback_failed
+    assert queue.msg_count == 0
+    assert queue.get(1) == []
+    with pytest.raises(OSError, match="append is blocked"):
+        queue.put(messages)
+
+    queue.close()
+    assert queue.append_rollback_failed
+
+
+def test_unlink_failure_retries_cleanup_without_replaying_completed_batch(
+        tmp_path, monkeypatch):
+    """Cleanup failure is distinct from unresolved processing ownership."""
+    options = Options()
+    options.pid_filename = str(tmp_path / "pid")
+    queue = DiskQueue(options, "unlink_cleanup")
+    queue.put([make_message()])
+    queue.on_housekeeping()
+    assert len(queue.get(1)) == 1
+
+    real_unlink = os.unlink
+    failures = 0
+
+    def fail_queue_unlink_once(path):
+        nonlocal failures
+        if path == queue.queue_file and failures == 0:
+            failures += 1
+            raise OSError("synthetic unlink failure")
+        real_unlink(path)
+
+    monkeypatch.setattr(os, "unlink", fail_queue_unlink_once)
+    assert queue.complete(1)
+    assert queue.inflight_count == 0
+    assert queue.cleanup_pending
+    assert os.path.exists(queue.queue_file)
+
+    queue.on_housekeeping()
+    assert not queue.cleanup_pending
+    assert not os.path.exists(queue.queue_file)
+
+    queue.put([make_message()])
+    queue.on_housekeeping()
+    assert len(queue.get(1)) == 1
+    assert queue.complete(1)
+    queue.close()

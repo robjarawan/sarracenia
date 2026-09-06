@@ -80,6 +80,9 @@ class Retry(FlowCB):
 
         if qty <= 0: return (True, [])
 
+        if self.download_retry_pending:
+            return (True, [])
+
         message_list = self.download_retry.get(qty)
         dequeued_count = len(message_list)
 
@@ -110,6 +113,9 @@ class Retry(FlowCB):
 
         """
         if not features['retry']['present'] or self.o.retry_refilter:
+            return
+
+        if self.download_retry_pending:
             return
 
         if len(self.download_retry) < 1:
@@ -144,18 +150,21 @@ class Retry(FlowCB):
         if not features['retry']['present'] :
             return
 
-        if len(worklist.failed) != 0:
-            for m in worklist.failed:
-                self.__set_isRetry(m)
-            to_retry = self.__filter_by_retry_count(worklist.failed)
-            logger.debug('putting %s messages into %s', len(to_retry), self.download_retry_name)
-            self.download_retry.put(to_retry)
-            worklist.failed = []
+        failed = worklist.failed
+        try:
+            self.__persist_failed(self.download_retry,
+                                  self.download_retry_name,
+                                  'download_retry_pending', failed)
+        except BaseException:
+            if self.download_retry_pending:
+                worklist.failed = []
+            raise
+        worklist.failed = []
 
         self.__complete_inflight(self.download_retry,
                                  'download_retry_inflight')
 
-        if len(self.post_retry) < 1:
+        if self.post_retry_pending or len(self.post_retry) < 1:
             return
 
         # retry posting...
@@ -185,21 +194,32 @@ class Retry(FlowCB):
         if not features['retry']['present'] :
             return
 
-        for m in worklist.failed:
-            self.__set_isRetry(m)
-
-        to_retry = self.__filter_by_retry_count(worklist.failed)
-
-        self.post_retry.put(to_retry)
+        failed = worklist.failed
+        try:
+            self.__persist_failed(self.post_retry,
+                                  self.post_retry_name,
+                                  'post_retry_pending', failed)
+        except BaseException:
+            if self.post_retry_pending:
+                worklist.failed = []
+            raise
         self.__complete_inflight(self.post_retry, 'post_retry_inflight')
 
     def metricsReport(self) -> dict:
-        """Returns the number of messages in the download_retry and post_retry queues.
+        """Return outstanding download and post retry obligations.
+
+        Disk-backed counts include batches handed to the flow but not completed,
+        along with retry writes waiting for a safe append.
 
         Returns:
             dict: containing metrics: ``{'msgs_in_download_retry': (int), 'msgs_in_post_retry': (int)}``
         """
-        return {'msgs_in_download_retry': len(self.download_retry), 'msgs_in_post_retry': len(self.post_retry)}
+        return {
+            'msgs_in_download_retry': self.__outstanding(
+                self.download_retry, self.download_retry_pending),
+            'msgs_in_post_retry': self.__outstanding(
+                self.post_retry, self.post_retry_pending)
+        }
 
     def on_cleanup(self) -> None:
         logger.debug('starting retry cleanup')
@@ -220,6 +240,8 @@ class Retry(FlowCB):
 
         self.download_retry_inflight = 0
         self.post_retry_inflight = 0
+        self.download_retry_pending = []
+        self.post_retry_pending = []
 
         if self.o.retry_driver == 'redis':
             from sarracenia.redisqueue import RedisQueue
@@ -244,11 +266,38 @@ class Retry(FlowCB):
         setattr(self, attribute, getattr(self, attribute) + message_count)
 
     def __complete_inflight(self, queue, attribute) -> None:
-        message_count = getattr(self, attribute)
-        if message_count <= 0 or not hasattr(queue, 'complete'):
+        if not hasattr(queue, 'complete'):
+            return
+        message_count = getattr(self, attribute, 0)
+        if message_count <= 0:
             return
         if queue.complete(message_count):
             setattr(self, attribute, 0)
+
+    def __persist_failed(self, queue, queue_name, pending_attribute,
+                         failed) -> None:
+        tracks_completion = hasattr(queue, 'complete')
+        pending = getattr(self, pending_attribute) if tracks_completion else []
+        for message in failed:
+            self.__set_isRetry(message)
+
+        to_retry = pending + self.__filter_by_retry_count(failed)
+        if not to_retry:
+            setattr(self, pending_attribute, [])
+            return
+
+        logger.debug('putting %s messages into %s', len(to_retry), queue_name)
+        try:
+            queue.put(to_retry)
+        except BaseException:
+            if tracks_completion:
+                setattr(self, pending_attribute, to_retry)
+            raise
+        setattr(self, pending_attribute, [])
+
+    def __outstanding(self, queue, pending) -> int:
+        inflight = getattr(queue, 'inflight_count', 0)
+        return len(queue) + max(inflight, len(pending))
 
     def __set_isRetry(self, msg):
         if '_isRetry' not in msg or ('_isRetry' in msg and type(msg['_isRetry']) != int):

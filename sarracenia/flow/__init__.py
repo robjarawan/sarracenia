@@ -31,6 +31,7 @@ from mimetypes import guess_type
 # end v2 subscriber
 
 from sarracenia.featuredetection import features
+from sarracenia.config.publisher import publisher_identity
 
 if features['reassembly']['present']:
     import sarracenia.blockmanifest
@@ -1294,14 +1295,20 @@ class Flow:
             if len(self.o.publishers) <= 1: # save creation of new messages (a lot of space & time savings.)
                 self.work_message_adjust(m)
                 m['publisher_index'] = 0
+                if len(self.o.publishers) == 1:
+                    m['publisher_identity'] = publisher_identity(self.o.publishers[0])
+                    m['_deleteOnPost'] |= set(['publisher_identity'])
             else: # replace output messages with 1 per publishing destination.
                 i=0
                 for p in self.o.publishers:
                     new_m=sarracenia.Message()
                     new_m.copyDict(m)
+                    new_m['_deleteOnPost'] = set(m['_deleteOnPost'])
                     new_m['publisher_index'] = i
                     new_m.updatePaths( self.o, m['new_dir'], m['new_file'], i )
                     self.work_message_adjust(new_m)
+                    new_m['publisher_identity'] = publisher_identity(p)
+                    new_m['_deleteOnPost'] |= set(['publisher_index', 'publisher_identity'])
                     post_messages.append(new_m) 
                     i += 1
             m['_deleteOnPost'] |= set(['publisher_index'])

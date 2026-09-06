@@ -2,7 +2,7 @@ name: Flow Tests / MQTT
 
 on:
   pull_request:
-    types: [opened, edited, reopened]
+    types: [opened, edited, reopened, synchronize]
   push:
     branches:
       - never
@@ -30,6 +30,9 @@ jobs:
       matrix:
        which_test: [ static_flow, no_mirror, flakey_broker, dynamic_flow ]
        osver: [ "ubuntu-22.04", "ubuntu-24.04" ]
+       # Fork proof runs use local fixtures; dynamic_flow consumes live datamarts.
+       exclude:
+         - which_test: ${{ github.repository == 'robjarawan/sarracenia' && 'dynamic_flow' || '__none__' }}
 
     runs-on: ${{ matrix.osver }}
   

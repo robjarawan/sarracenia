@@ -32,6 +32,7 @@ import sarracenia.identity
 import stat
 from sys import platform as _platform
 import sys
+import threading
 import time
 
 if features['watch']['present']:
@@ -70,7 +71,8 @@ class File(FlowCB):
     """
     def on_add(self, event, src, dst):
         logger.debug('%s %s %s', event, src, dst)
-        self.new_events[f'{src} {dst}'] = (event, src, dst)
+        with self.events_lock:
+            self.new_events[f'{src} {dst}'] = (event, src, dst)
 
     def on_created(self, event):
         # on_created (for SimpleEventHandler)
@@ -111,6 +113,7 @@ class File(FlowCB):
         self.post_topicPrefix = ["v03"]
 
         self.inl = OrderedDict()
+        self.events_lock = threading.Lock()
         self.new_events = OrderedDict()
         self.left_events = OrderedDict()
 
@@ -508,15 +511,12 @@ class File(FlowCB):
     def wakeup(self):
         #logger.debug("wakeup")
 
-        # FIXME: Tiny potential for events to be dropped during copy.
-        #     these lists might need to be replaced with watchdog event queues.
-        #     left for later work. PS-20170105
-        #     more details: https://github.com/gorakhargosh/watchdog/issues/392
-
-        # pile up left events to process
-
-        self.left_events.update(self.new_events)
-        self.new_events = OrderedDict()
+        # Detach one batch while the observer is excluded, then process it without
+        # holding the lock. New observer events belong to the next batch.
+        with self.events_lock:
+            pending_events = self.new_events
+            self.new_events = OrderedDict()
+        self.left_events.update(pending_events)
 
         # work with a copy events and keep done events (to delete them)
 

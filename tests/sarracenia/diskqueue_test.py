@@ -702,6 +702,84 @@ def test_housekeeping_keeps_failed_append_rollback_blocked(tmp_path,
     assert queue.append_rollback_failed
 
 
+@pytest.mark.parametrize("with_persisted_prefix", [False, True])
+def test_failed_append_rollback_recovers_at_saved_boundary(
+        tmp_path, monkeypatch, with_persisted_prefix):
+    """A later append recovers a failed rollback without loss or duplicates."""
+    options = Options()
+    options.pid_filename = str(tmp_path / "pid")
+    queue = DiskQueue(options, "recover_failed_append_rollback")
+    expected_paths = []
+
+    if with_persisted_prefix:
+        persisted = make_message()
+        persisted["relPath"] = "persisted-prefix"
+        queue.put([persisted])
+        expected_paths.append("persisted-prefix")
+    else:
+        queue.new_fp = open(queue.new_path, 'a')
+
+    messages = [make_message() for _ in range(4)]
+    for index, message in enumerate(messages):
+        message["relPath"] = "recovered-%d" % index
+
+    class PartialWriter:
+
+        def __init__(self, wrapped):
+            self.wrapped = wrapped
+            self.write_calls = 0
+
+        def __getattr__(self, name):
+            return getattr(self.wrapped, name)
+
+        def write(self, value):
+            self.write_calls += 1
+            if self.write_calls == 2:
+                self.wrapped.write(value[:len(value) // 2])
+                self.wrapped.flush()
+                raise OSError("synthetic partial write")
+            return self.wrapped.write(value)
+
+        def close(self):
+            return self.wrapped.close()
+
+    queue.new_fp = PartialWriter(queue.new_fp)
+    real_open = open
+    rollback_failures = 2
+
+    def fail_rollback_twice(path, mode='r', *args, **kwargs):
+        nonlocal rollback_failures
+        if (path == queue.new_path and mode == 'r+b'
+                and rollback_failures > 0):
+            rollback_failures -= 1
+            raise OSError("synthetic rollback failure")
+        return real_open(path, mode, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.open", fail_rollback_twice)
+    with pytest.raises(OSError, match="synthetic partial write"):
+        queue.put(messages[:2])
+
+    with real_open(queue.new_path, 'rb') as queue_file:
+        blocked_bytes = queue_file.read()
+    queue.on_housekeeping()
+    queue.close()
+
+    assert queue.append_rollback_failed
+    with pytest.raises(OSError, match="append is blocked"):
+        queue.put(messages[:3])
+    with real_open(queue.new_path, 'rb') as queue_file:
+        assert queue_file.read() == blocked_bytes
+
+    queue.put(messages)
+    assert not queue.append_rollback_failed
+    queue.on_housekeeping()
+    recovered = queue.get(10)
+    expected_paths.extend("recovered-%d" % index for index in range(4))
+    assert [message["relPath"] for message in recovered] == expected_paths
+    assert queue.complete(len(recovered))
+    queue.close()
+
+
 def test_unlink_failure_retries_cleanup_without_replaying_completed_batch(
         tmp_path, monkeypatch):
     """Cleanup failure is distinct from unresolved processing ownership."""

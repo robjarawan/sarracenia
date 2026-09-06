@@ -121,9 +121,10 @@ class DiskQueue():
         self.cleanup_pending = False
 
         # Stop live retries if an append or reader rollback cannot restore a
-        # known record boundary. Restart can recover from the authoritative
-        # queue files without guessing.
+        # known record boundary. A later append retries a failed append
+        # rollback before writing the retained batch.
         self.append_rollback_failed = False
+        self.append_rollback_boundary = None
         self.reader_rollback_failed = False
 
         # msg_count_new is the number of messages added for retry in this interval
@@ -151,7 +152,8 @@ class DiskQueue():
         """
 
         if self.append_rollback_failed:
-            raise OSError("retry queue append is blocked after rollback failure")
+            if not self._restore_append_boundary():
+                raise OSError("retry queue append is blocked after rollback failure")
 
         if self.new_fp is None:
             self.new_fp = open(self.new_path, 'a')
@@ -196,6 +198,16 @@ class DiskQueue():
 
         self.new_fp = None
         self.msg_count_new = count_start
+        self.append_rollback_boundary = (append_start, count_start)
+        self._restore_append_boundary()
+
+    def _restore_append_boundary(self) -> bool:
+        """Retry restoring `.new` to the last known complete append boundary."""
+        if self.append_rollback_boundary is None:
+            return not self.append_rollback_failed
+
+        append_start, count_start = self.append_rollback_boundary
+        self.msg_count_new = count_start
         try:
             with open(self.new_path, 'r+b') as rollback_fp:
                 rollback_fp.truncate(append_start)
@@ -203,6 +215,11 @@ class DiskQueue():
             self.append_rollback_failed = True
             logger.error("could not roll back retry append for %s: %s",
                          self.new_path, err)
+            return False
+
+        self.append_rollback_failed = False
+        self.append_rollback_boundary = None
+        return True
 
     def cleanup(self):
         """
@@ -214,6 +231,7 @@ class DiskQueue():
         self.inflight_count = 0
         self.cleanup_pending = False
         self.append_rollback_failed = False
+        self.append_rollback_boundary = None
         self.reader_rollback_failed = False
 
     def close(self):

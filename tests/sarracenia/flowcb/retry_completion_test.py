@@ -356,6 +356,78 @@ def test_post_retry_write_failure_survives_later_flow_callback(tmp_path,
     assert reopen(options, "post_retry") == 2
 
 
+def test_post_retry_recovers_after_append_rollback_failure(
+        tmp_path, monkeypatch):
+    """Post retries resume persistence when a failed rollback later succeeds."""
+    options = Options(tmp_path)
+    retry = Retry(options)
+    retry.on_start()
+    queue = retry.post_retry
+    queue.new_fp = open(queue.new_path, 'a')
+
+    class PartialWriter:
+
+        def __init__(self, wrapped):
+            self.wrapped = wrapped
+            self.write_calls = 0
+
+        def __getattr__(self, name):
+            return getattr(self.wrapped, name)
+
+        def write(self, value):
+            self.write_calls += 1
+            if self.write_calls == 2:
+                self.wrapped.write(value[:len(value) // 2])
+                self.wrapped.flush()
+                raise OSError("synthetic partial write")
+            return self.wrapped.write(value)
+
+        def close(self):
+            return self.wrapped.close()
+
+    queue.new_fp = PartialWriter(queue.new_fp)
+    real_open = open
+    rollback_failures = 2
+
+    def fail_rollback_twice(path, mode='r', *args, **kwargs):
+        nonlocal rollback_failures
+        if (path == queue.new_path and mode == 'r+b'
+                and rollback_failures > 0):
+            rollback_failures -= 1
+            raise OSError("synthetic rollback failure")
+        return real_open(path, mode, *args, **kwargs)
+
+    monkeypatch.setattr("builtins.open", fail_rollback_twice)
+    worklist = make_worklist()
+    worklist.failed = [make_message(1), make_message(2)]
+    dispatch(retry, worklist, "after_post")
+    assert len(retry.post_retry_pending) == 2
+
+    worklist.failed = [make_message(3)]
+    dispatch(retry, worklist, "after_post")
+    assert len(retry.post_retry_pending) == 3
+    queue.on_housekeeping()
+    retry.on_stop()
+
+    worklist.failed = [make_message(4)]
+    dispatch(retry, worklist, "after_post")
+    assert retry.post_retry_pending == []
+    assert [message["_isRetry"] for message in
+            read_new_messages(queue)] == [1, 1, 1, 1]
+    retry.on_stop()
+
+    restarted = Retry(options)
+    restarted.on_start()
+    restarted.post_retry.on_housekeeping()
+    recovered = restarted.post_retry.get(10)
+    assert [message["relPath"] for message in recovered] == [
+        "data-1.bin", "data-2.bin", "data-3.bin", "data-4.bin"
+    ]
+    assert [message["_isRetry"] for message in recovered] == [1, 1, 1, 1]
+    assert restarted.post_retry.complete(4)
+    restarted.on_stop()
+
+
 def test_post_retry_failure_remains_visible_to_later_callbacks(tmp_path,
                                                                  caplog):
     """Persisting a post retry does not hide it from later callbacks."""

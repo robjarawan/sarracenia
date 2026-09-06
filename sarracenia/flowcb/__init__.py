@@ -207,6 +207,11 @@ class FlowCB:
          before the full stop happens.
 
     """
+
+    # Entry points in this tuple are registered after the same entry point
+    # from every other callback, without changing the callback's load order.
+    run_last = ()
+
     def __init__(self, options, class_logger=None):
         self.o = options
         self.stop_requested = False

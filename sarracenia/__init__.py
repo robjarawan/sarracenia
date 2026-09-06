@@ -596,8 +596,8 @@ class Message(dict):
                     if offset:
                         fp.seek( offset )
 
-                    while i < offset+msg['size']:
-                        buf = fp.read(o.bufSize)
+                    while i < msg['size']:
+                        buf = fp.read(min(o.bufSize, msg['size'] - i))
                         if not buf: break
                         sumalgo.update(buf)
                         i += len(buf)

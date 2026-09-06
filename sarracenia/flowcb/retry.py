@@ -145,6 +145,10 @@ class Retry(FlowCB):
             self.download_retry.put(to_retry)
             worklist.failed = []
 
+        if not getattr(self.o, 'post_broker', None) or not getattr(
+                self.o, 'publishers', []):
+            return
+
         if len(self.post_retry) < 1:
             return
 

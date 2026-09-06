@@ -39,6 +39,16 @@ Installation Instructions
 git
 ---
 
+3.03.01
+-------
+
+*ACTION*: Drain post retry queues before upgrading. New post retry records store
+the publishing destination identity. Older records contain only a numeric publisher
+index, which cannot prove the original destination after a configuration change.
+Sarracenia holds these ambiguous records instead of risking delivery to the wrong
+destination. They remain subject to the configured ``retry_ttl`` and
+``retryCountMax`` limits.
+
 3.03.00
 -------
 
@@ -692,4 +702,3 @@ V2 to Sr3
 *NOTICE*: sr3 watch, with the *force_polling* option, is much less efficient 
           on sr3 than v2 for large directory trees (see issue #403 )
           Ideally, one does not use *force_polling* at all.
-

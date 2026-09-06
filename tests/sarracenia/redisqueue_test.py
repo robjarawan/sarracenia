@@ -7,7 +7,7 @@ from sarracenia import Message as SR3Message
 
 import fakeredis
 
-import jsonpickle
+import copy, jsonpickle
 
 class Options:
     def __init__(self):
@@ -69,6 +69,30 @@ def test__in_cache():
         assert download_retry._in_cache(message) == False
         # Checking if it's there actually adds it, so checking it again right after should return True
         assert download_retry._in_cache(message) == True
+
+def test__in_cache_preserves_publisher_obligations():
+    with patch(target="redis.from_url", new=fakeredis.FakeStrictRedis.from_url, ):
+        BaseOptions = Options()
+        post_retry = RedisQueue(BaseOptions, 'post_retry')
+
+        first = make_message()
+        first['publisher_identity'] = {'broker': 'amqp://first', 'exchange': ['first']}
+        second = copy.deepcopy(first)
+        second['publisher_identity'] = {'broker': 'amqp://second', 'exchange': ['second']}
+        post_retry.retry_cache = {}
+
+        assert post_retry._in_cache(first) == False
+        assert post_retry._in_cache(second) == False
+        assert post_retry._in_cache(copy.deepcopy(second)) == True
+
+        first.pop('publisher_identity')
+        second.pop('publisher_identity')
+        first['publisher_index'] = 0
+        second['publisher_index'] = 1
+        post_retry.retry_cache = {}
+
+        assert post_retry._in_cache(first) == False
+        assert post_retry._in_cache(second) == False
 
 def test__is_exired__TooSoon():
     with patch(target="redis.from_url", new=fakeredis.FakeStrictRedis.from_url, ):

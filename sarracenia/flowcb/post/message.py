@@ -3,11 +3,11 @@
 # Copyright (C) Her Majesty The Queen in Right of Canada, Environment Canada, 2008-2020
 #
 
-import copy
 import logging
 
 import sarracenia.moth
 from sarracenia.flowcb import FlowCB
+from sarracenia.publisher import publisher_identity
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +37,24 @@ class Message(FlowCB):
         #else:
         #    logger.error( f"no publishers for {self.o.component}/{self.o.config}")
 
+    @staticmethod
+    def _publisher_identity(publisher):
+        return publisher_identity(publisher)
+
+    def _publisher_index(self, message):
+        retry_identity = message.get('publisher_identity')
+        if retry_identity is not None:
+            message['_deleteOnPost'].add('publisher_identity')
+            for index, publisher in enumerate(self.o.publishers):
+                if retry_identity == self._publisher_identity(publisher):
+                    message['publisher_index'] = index
+                    return index
+            return None
+
+        # Index-only state predates stable publisher identities. Configuration
+        # edits can reuse an index for another destination, so it is ambiguous.
+        return None
+
 
     def post(self, worklist):
         old_ok = worklist.ok
@@ -46,16 +64,28 @@ class Message(FlowCB):
             i=0
             failures=[]
             if 'publisher_index' in m:
-                i=m['publisher_index']
-                p=self.posters[i]
-                if hasattr(p,'putNewMessage'):
-                    try:
-                        if not p.putNewMessage(m):
+                i = self._publisher_index(m)
+                if i is None:
+                    if 'publisher_identity' in m:
+                        logger.warning(
+                            "publisher for retry is no longer configured: %s",
+                            m['publisher_identity'])
+                    else:
+                        logger.warning(
+                            "post retry has no publisher identity; holding "
+                            "ambiguous publisher index: %s",
+                            m.get('publisher_index'))
+                    failures.append(m.get('publisher_index', -1))
+                else:
+                    p = self.posters[i]
+                    if hasattr(p, 'putNewMessage'):
+                        try:
+                            if not p.putNewMessage(m):
+                                failures.append(i)
+                        except Exception as e:
+                            logger.warning("putNewMessage crashed %s", e)
+                            logger.debug("Exception details:", exc_info=True)
                             failures.append(i)
-                    except Exception as e:
-                        logger.warning(f"putNewMessage crashed {e}")
-                        logger.debug("Exception details:", exc_info=True)
-                        failures.append(i)
             else:
                 for p in self.posters:
                     if hasattr(p,'putNewMessage'):

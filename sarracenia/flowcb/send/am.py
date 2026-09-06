@@ -157,10 +157,8 @@ class Am(FlowCB):
 
             while True:
                 try:
-                    bytesSent = self.s.send(self.packed_bulletin)
-
-                    # Check if went okay
-                    return bytesSent == len(self.packed_bulletin)
+                    self.s.sendall(self.packed_bulletin)
+                    return True
                     
                 except socket.error as e:
                     logger.debug("Bulletin not sent. Error message: %s",str(e.args))

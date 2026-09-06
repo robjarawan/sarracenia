@@ -111,9 +111,6 @@ class Message(FlowCB):
             if len(failures)<1:
                 if 'post_failures' in m:
                    del m['post_failures']
-                if 'publisher_identity' in m:
-                    del m['publisher_identity']
-                    m['_deleteOnPost'].discard('publisher_identity')
                 worklist.ok.append(m)
             else:
                 m['post_failures'] = failures

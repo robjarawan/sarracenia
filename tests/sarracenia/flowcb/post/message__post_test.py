@@ -181,7 +181,8 @@ def test_retry_follows_original_publisher_after_reorder_and_restart(tmp_path):
     assert wrong_destination_a.messages == []
     assert batch.ok == [replay]
     assert batch.failed == []
-    assert 'publisher_identity' not in replay
+    assert 'publisher_identity' in replay
+    assert 'publisher_identity' in replay['_deleteOnPost']
 
 
 def test_removed_publisher_stays_retryable_through_flow_post(tmp_path):
@@ -221,7 +222,57 @@ def test_unchanged_publisher_order_control_retries_second_destination(tmp_path):
     assert destination_a.messages == []
     assert len(destination_b.messages) == 1
     assert batch.ok == [replay]
-    assert 'publisher_identity' not in replay
+    assert 'publisher_identity' in replay
+    assert 'publisher_identity' in replay['_deleteOnPost']
+
+
+def test_later_post_callback_failure_retries_with_publisher_identity(tmp_path):
+    cfg = configured_publishers(options(tmp_path), ['a'])
+    destination = RecordingPublisher('a', True)
+    callback = poster(cfg, [destination])
+    callback_attempts = []
+
+    def fail_once(worklist):
+        callback_attempts.append(len(worklist.ok))
+        if len(callback_attempts) == 1:
+            worklist.failed.extend(worklist.ok)
+            worklist.ok = []
+
+    retry = Retry(cfg)
+    retry.on_start()
+    try:
+        flow = Flow(cfg)
+        source = message()
+        source['new_dir'] = str(tmp_path)
+        flow.do = lambda: setattr(flow.worklist, 'ok', [source])
+        flow.work()
+        flow.plugins['post'] = [callback.post, fail_once]
+        flow.plugins['after_post'] = [retry.after_post]
+        flow._runCallbackMetrics = lambda: None
+        flow.post(sarracenia.nowflt())
+        retry.post_retry.on_housekeeping()
+    finally:
+        retry.on_stop()
+
+    retry = Retry(cfg)
+    retry.on_start()
+    flow = Flow(cfg)
+    flow.plugins['post'] = [callback.post, fail_once]
+    flow.plugins['after_post'] = [retry.after_post]
+    flow._runCallbackMetrics = lambda: None
+    try:
+        retry.after_work(flow.worklist)
+        assert len(flow.worklist.ok) == 1
+        assert 'publisher_identity' in flow.worklist.ok[0]
+        assert 'publisher_identity' in flow.worklist.ok[0]['_deleteOnPost']
+        flow.post(sarracenia.nowflt())
+        retry.post_retry.on_housekeeping()
+
+        assert len(destination.messages) == 2
+        assert callback_attempts == [1, 1]
+        assert len(retry.post_retry) == 0
+    finally:
+        retry.on_stop()
 
 
 def test_single_publisher_retry_control_survives_housekeeping(tmp_path):

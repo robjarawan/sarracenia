@@ -41,7 +41,7 @@ try:
 except ImportError:
     resource = None
 from sarracenia.flowcb import FlowCB
-from sarracenia import naturalSize, naturalTime, user_cache_dir, nowstr
+from sarracenia import naturalSize, naturalTime, user_cache_dir, nowstr, timestr2flt
 from sarracenia.featuredetection import features
 
 if features['process']['present']:
@@ -64,6 +64,96 @@ class Resources(FlowCB):
         self.transferCount = 0
         self.msgCount = 0
         self.randomSleep = 1 + round(random.random(), 2)
+
+    def _restart_owner_state(self):
+        process_start = None
+        if features['process']['present']:
+            try:
+                process_start = psutil.Process().create_time()
+            except (psutil.Error, OSError):
+                pass
+
+        if process_start is None:
+            return f'{os.getpid()} {nowstr()}'
+        return f'{os.getpid()} {process_start} {nowstr()}'
+
+    def _restart_owner_is_alive(self, state):
+        fields = state.split()
+        try:
+            owner_pid = int(fields[0])
+        except IndexError:
+            return None
+        except ValueError:
+            try:
+                timestr2flt(state.strip())
+                return None
+            except (IndexError, TypeError, ValueError):
+                return False
+        if owner_pid <= 0:
+            return None
+
+        if features['process']['present'] and len(fields) >= 3:
+            try:
+                owner_start = float(fields[1])
+                process_start = psutil.Process(owner_pid).create_time()
+                return abs(process_start - owner_start) < 0.01
+            except (ValueError, psutil.NoSuchProcess):
+                return False
+            except psutil.AccessDenied:
+                return True
+            except (psutil.Error, OSError):
+                return True
+
+        if os.name != 'posix':
+            return True
+        try:
+            os.kill(owner_pid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+        except OSError:
+            return False
+        return True
+
+    def _acquire_restart_state_file(self):
+        while True:
+            try:
+                with open(self.state_file, 'x') as state_file:
+                    state_file.write(self._restart_owner_state())
+                return
+            except FileExistsError:
+                logger.info(
+                    f'State file already exists: {self.state_file}. '
+                    f'Waiting {self.randomSleep} seconds.'
+                )
+                time.sleep(self.randomSleep)
+
+            try:
+                with open(self.state_file) as state_file:
+                    owner_state = state_file.read()
+            except FileNotFoundError:
+                continue
+
+            owner_is_alive = self._restart_owner_is_alive(owner_state)
+            if owner_is_alive:
+                continue
+            if owner_is_alive is None:
+                try:
+                    marker_age = time.time() - os.path.getmtime(self.state_file)
+                except FileNotFoundError:
+                    continue
+                if marker_age < 60:
+                    continue
+
+            try:
+                with open(self.state_file) as state_file:
+                    if state_file.read() != owner_state:
+                        continue
+                os.unlink(self.state_file)
+                logger.warning(f'Removed orphaned restart state file: {self.state_file}')
+            except FileNotFoundError:
+                pass
 
     def on_housekeeping(self):
         if features['process']['present']:
@@ -123,17 +213,9 @@ class Resources(FlowCB):
         # Before triggering a restart, add a state file to prevent other processes to stop/start it at the same time.
         self.state_file = self.o.cfg_run_dir + os.sep + 'resources_restart'
 
-        file_not_ready = True
-
-        # If another process is performing a OOM restart, wait until it is complete before creating a new state file to avoid a race-condition.
-        while file_not_ready:
-            if not os.path.exists(self.state_file):
-                file_not_ready = False
-                with open(self.state_file, "w") as f:
-                    f.write(nowstr())
-            else:
-                logger.info(f"State file already exists : {self.state_file}. Waiting {self.randomSleep} seconds.")
-                time.sleep(self.randomSleep)
+        # If another process is performing an OOM restart, wait until it is complete
+        # before creating a new state file to avoid a race condition.
+        self._acquire_restart_state_file()
 
 
         if sys.platform.startswith(('linux', 'cygwin', 'darwin', 'aix')):

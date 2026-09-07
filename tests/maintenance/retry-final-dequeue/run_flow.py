@@ -27,7 +27,6 @@ import os
 import re
 import shutil
 import signal
-import site
 import socket
 import subprocess
 import sys
@@ -35,19 +34,30 @@ import time
 import uuid
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-FLOW_SRC = os.path.join(HERE, "..", "..", "..", "..", "..")
-SR3 = shutil.which("sr3") or "/net/local/home/jarawanr/.local/bin/sr3"
-TREES = {
-    "base": "/tmp/wt149base",
-    "fix": "/tmp/wt149fix",
+SR3 = shutil.which("sr3")
+if not SR3:
+    raise RuntimeError("sr3 must be on PATH to run this reproduction")
+# Source repository the trees are built from; override with REPRO_REPO.
+REPO = os.environ.get(
+    "REPRO_REPO",
+    os.path.normpath(
+        os.path.join(
+            HERE, "..", "..", "..", "..", "..", "..", "sarracenia")))
+TREES_WANT = {
+    "base": "24de015ccbdd20419ff4cc58e560478009d6ed20",
+    "fix": "19dbb236564dbd39c9024b3f7c0fae791d3b4334",
 }
+TREES = {}
 EVIDENCE = os.path.join(HERE, "evidence")
-CONTAINER = "sr-retryfinal-flow-%s" % uuid.uuid4().hex[:8]
-AMQP_PORT = 5673
-DEAD_PORT = 5674
 EXCHANGE = "xs_retryfinal"
 
+# Allocated at runtime in main(); never fixed. The broker mapping comes
+# from `docker port`, the dead post port is verified refused first.
+BROKER_PORT = None
+DEAD_PORT = None
+
 PHASE_DEADLINE = 300
+RUN_DEADLINE = 5400
 
 
 def sh(args, env, log_path, timeout=PHASE_DEADLINE):
@@ -67,20 +77,18 @@ def sh(args, env, log_path, timeout=PHASE_DEADLINE):
             return "timeout"
 
 
-# Operator user-site packages (amqp, appdirs, jsonpickle, ...) live under
-# the real HOME, which the per-case isolation hides. Restoring that one
-# directory reproduces the operator's normal `sr3` environment exactly;
-# the worktree under test still takes import precedence via PYTHONPATH.
-USERSITE = site.getusersitepackages()
-
-
 def sr3_env(casedir, tree, extra=None):
+    # Only SR3's own directories are isolated, via the XDG variables the
+    # application itself honors. HOME is intentionally left alone so the
+    # worker runs with the exact operator interpreter and installed
+    # dependencies; the worktree under test takes import precedence
+    # through PYTHONPATH. A startup guard below proves the real home
+    # gained no repro artifacts.
     home = os.path.join(casedir, "home")
     env = dict(os.environ)
-    env["HOME"] = home
     env["XDG_CONFIG_HOME"] = os.path.join(home, ".config")
     env["XDG_CACHE_HOME"] = os.path.join(home, ".cache")
-    env["PYTHONPATH"] = os.pathsep.join([casedir, tree, USERSITE])
+    env["PYTHONPATH"] = casedir + os.pathsep + tree
     env["PATH"] = os.path.dirname(SR3) + os.pathsep + env.get("PATH", "")
     env["REPRO_RUNDIR"] = casedir
     if extra:
@@ -126,6 +134,9 @@ def queue_lines(casedir, cfgname, kind):
     ]
     if not matches:
         return None
+    if len(matches) > 1:
+        raise RuntimeError("ambiguous queue files, want exactly one: %s"
+                           % sorted(matches))
     with open(matches[0], "rb") as handle:
         return handle.read().count(b"\n")
 
@@ -147,10 +158,69 @@ def list_state(casedir, cfgname):
     return out
 
 
+def prepare_trees():
+    """Create fresh worktrees for both revisions under evidence/trees.
+
+    The harness never trusts pre-existing checkouts: a vanished or
+    wrong tree once made every worker silently import an unrelated
+    installed copy, and every result looked plausible. Each tree is
+    verified by import before any case runs.
+    """
+    trees_dir = os.path.join(EVIDENCE, "trees")
+    if os.path.exists(trees_dir):
+        shutil.rmtree(trees_dir)
+    os.makedirs(trees_dir)
+    for name, sha in TREES_WANT.items():
+        dest = os.path.join(trees_dir, name)
+        out = subprocess.run(
+            ["git", "-C", REPO, "worktree", "add", "--detach", dest, sha],
+            capture_output=True,
+            text=True,
+            timeout=120)
+        assert out.returncode == 0, "worktree add failed: %s" % out.stderr
+        probe = subprocess.run(
+            [sys.executable, "-c",
+             "import sarracenia; print(sarracenia.__file__)"],
+            env={**os.environ,
+                 "PYTHONPATH": dest},
+            capture_output=True,
+            text=True,
+            timeout=60)
+        got = probe.stdout.strip().splitlines()
+        assert probe.returncode == 0 and got and got[-1].startswith(dest), \
+            "tree %s does not import from itself: %s %s" % (name, got,
+                                                            probe.stderr[-500:])
+        TREES[name] = dest
+    return trees_dir
+
+
+def drop_trees(trees_dir):
+    subprocess.run(["git", "-C", REPO, "worktree", "remove", "--force",
+                    os.path.join(trees_dir, "base")],
+                   capture_output=True)
+    subprocess.run(["git", "-C", REPO, "worktree", "remove", "--force",
+                    os.path.join(trees_dir, "fix")],
+                   capture_output=True)
+    shutil.rmtree(trees_dir, ignore_errors=True)
+
+
+def assert_tree_identity(record, tree):
+    """Every worker-reported sarracenia path must live under the tree
+    under test. A mismatch aborts the case: results from the wrong
+    interpreter revision are worse than no results."""
+    for key in ("kill_marker", "restart_marker"):
+        marker = record.get(key)
+        if not marker:
+            continue
+        path = marker.get("sarracenia_file", "")
+        assert path.startswith(tree + os.sep), \
+            "worker ran %s, want tree %s" % (path, tree)
+
+
 def broker_env():
     return {
         "REPRO_AMQP_URL":
-        "amqp://guest:guest@127.0.0.1:%d//" % AMQP_PORT,
+        "amqp://guest:guest@127.0.0.1:%d//" % BROKER_PORT,
         "REPRO_EXCHANGE": EXCHANGE,
     }
 
@@ -236,7 +306,7 @@ class Case:
         text = text.replace("__QUEUE__", self.queue)
         text = text.replace("__SUBTOPIC__", self.subtopic)
         text = text.replace("__BATCH__", str(batch))
-        text = text.replace("__PORT__", str(AMQP_PORT))
+        text = text.replace("__PORT__", str(BROKER_PORT))
         text = text.replace("__DEADPORT__", str(DEAD_PORT))
         text = text.replace("__DOWNLOADS__",
                             os.path.join(self.casedir, "downloads"))
@@ -512,56 +582,126 @@ CASES = {
 }
 
 
-def free_port(port):
-    probe = socket.socket()
-    probe.settimeout(2)
-    try:
-        probe.connect(("127.0.0.1", port))
-        probe.close()
-        return False
-    except OSError:
-        return True
-
-
-def kill_strays():
-    """SIGKILL any leftover retryfinal worker from an aborted run.
-
-    Matched on the unique config name, so nothing else can match.
-    Prevents stale workers from holding NFS files or broker queues.
-    """
-    killed = []
-    for pid in os.listdir("/proc"):
-        if not pid.isdigit():
+def owned_pids(casedir, cfgname):
+    """PIDs read from this case's own pidfiles. The only identities this
+    harness may ever signal: exact, run-owned, never name-matched."""
+    pids = set()
+    root = state_dir(casedir, cfgname)
+    if not os.path.isdir(root):
+        return pids
+    for name in os.listdir(root):
+        if not name.endswith(".pid"):
             continue
         try:
-            with open("/proc/%s/cmdline" % pid, "rb") as handle:
-                cmdline = handle.read().replace(b"\0", b" ").decode()
-        except (FileNotFoundError, ProcessLookupError):
-            continue
-        if "retryfinal" in cmdline and "run_flow" not in cmdline:
-            try:
-                os.kill(int(pid), signal.SIGKILL)
-                killed.append(int(pid))
-            except ProcessLookupError:
-                pass
-    for _ in range(30):
-        if all(pid_dead(p) for p in killed):
+            with open(os.path.join(root, name)) as handle:
+                pids.add(int(handle.read().strip().split()[0]))
+        except (ValueError, OSError):
+            pass
+    return pids
+
+
+def terminate_owned(casedir, cfgname):
+    """Stop exactly this case's workers: SIGTERM, wait, escalate to
+    SIGKILL, then verify every owned PID is dead. Raises if any owned
+    PID survives. Never touches any other process."""
+    pending = owned_pids(casedir, cfgname)
+    for pid in pending:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+    end = time.time() + 30
+    while time.time() < end:
+        pending = {p for p in pending if not pid_dead(p)}
+        if not pending:
             break
         time.sleep(1)
-    return killed
+    for pid in pending:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    end = time.time() + 15
+    while time.time() < end:
+        pending = {p for p in pending if not pid_dead(p)}
+        if not pending:
+            return
+        time.sleep(1)
+    raise RuntimeError("owned workers survived cleanup: %s" % sorted(pending))
+
+
+def assert_real_home_clean():
+    """Prove the un-isolated real home gained no repro artifacts. Never
+    deletes anything there: any hit aborts the run instead."""
+    hits = []
+    for base in (os.path.expanduser("~/.config/sr3"),
+                 os.path.expanduser("~/.cache/sr3")):
+        if not os.path.isdir(base):
+            continue
+        for root, _dirs, files in os.walk(base):
+            for name in files + root.split(os.sep)[-1:]:
+                if "retryfinal" in name or "retryfinal" in root:
+                    hits.append(os.path.join(root, name))
+                    break
+    if hits:
+        raise RuntimeError(
+            "real home contains repro artifacts, refusing: %s" % hits[:5])
+
+
+def alloc_dead_port():
+    """A currently-unused loopback port for the dead post broker,
+    verified refused immediately before use."""
+    for _attempt in range(20):
+        probe = socket.socket()
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+        probe.close()
+        check = socket.socket()
+        check.settimeout(2)
+        try:
+            check.connect(("127.0.0.1", port))
+            check.close()
+        except OSError:
+            return port
+    raise RuntimeError("no verifiably closed loopback port found")
+
+
+def docker_broker_port(name):
+    out = subprocess.run(["docker", "port", name, "5672"],
+                         capture_output=True,
+                         text=True,
+                         timeout=60)
+    assert out.returncode == 0, "docker port failed: %s" % out.stderr
+    return int(out.stdout.strip().rsplit(":", 1)[1])
 
 
 def main():
+    global BROKER_PORT, DEAD_PORT
     wanted_trees = sys.argv[1:2] or ["base", "fix"]
     wanted_cases = sys.argv[2:] or list(CASES)
-    strays = kill_strays()
-    print("stray workers killed: %s" % strays, flush=True)
-    assert free_port(DEAD_PORT), "dead post port %d is in use" % DEAD_PORT
+    assert_real_home_clean()
+    DEAD_PORT = alloc_dead_port()
+    if os.path.exists(EVIDENCE):
+        shutil.rmtree(EVIDENCE)
+    os.makedirs(EVIDENCE)
+    trees_dir = prepare_trees()
+    print("trees: %s" % TREES, flush=True)
+    with open(os.path.join(EVIDENCE, "trees.json"), "w") as handle:
+        json.dump({"want": TREES_WANT, "paths": TREES}, handle, indent=2)
     name = "sr-retryfinal-%s" % uuid.uuid4().hex[:8]
-    subprocess.run(["docker", "run", "-d", "--rm", "--name", name, "-p",
-                    "127.0.0.1:%d:5672" % AMQP_PORT, "rabbitmq:4-alpine"],
+    subprocess.run([
+        "docker", "run", "-d", "--rm", "--name", name,
+        "--memory", "512m", "--cpus", "1", "--pids-limit", "128",
+        "--label", "repro=retryfinal-149", "-p", "127.0.0.1::5672",
+        "rabbitmq:4-alpine"
+    ],
                    check=True,
                    capture_output=True)
+    BROKER_PORT = docker_broker_port(name)
+    print("broker %s on 127.0.0.1:%d, dead post port %d" %
+          (name, BROKER_PORT, DEAD_PORT),
+          flush=True)
+    run_deadline = time.time() + RUN_DEADLINE
     try:
         env = dict(os.environ)
         env.update(broker_env())
@@ -577,22 +717,41 @@ def main():
         failed = 0
         for tree_name in wanted_trees:
             for case_name in wanted_cases:
+                if time.time() > run_deadline:
+                    raise RuntimeError("overall run deadline exceeded")
+                case_obj = None
                 try:
-                    CASES[case_name](tree_name, TREES[tree_name])
+                    case_obj = CASES[case_name](tree_name,
+                                               TREES[tree_name])
+                    with open(
+                            os.path.join(case_obj.casedir,
+                                         "evidence.json")) as handle:
+                        assert_tree_identity(json.load(handle),
+                                             TREES[tree_name])
                     print("PASS %s-%s" % (tree_name, case_name),
                           flush=True)
                     summary.append([tree_name, case_name, "PASS"])
-                except Exception as err:
-                    print("FAIL %s-%s: %s" % (tree_name, case_name, err),
+                except BaseException as primary:
+                    print("FAIL %s-%s: %s" % (tree_name, case_name,
+                                             primary),
                           flush=True)
                     summary.append(
-                        [tree_name, case_name, "FAIL: %s" % err])
+                        [tree_name, case_name, "FAIL: %s" % primary])
                     failed += 1
+                    if case_obj is not None:
+                        try:
+                            terminate_owned(case_obj.casedir,
+                                            case_obj.cfgname)
+                        except Exception as cleanup_err:
+                            raise RuntimeError(
+                                "cleanup failed after case failure: %s"
+                                % primary) from cleanup_err
         with open(os.path.join(EVIDENCE, "summary.json"), "w") as handle:
             json.dump(summary, handle, indent=2)
         print("failed: %d" % failed, flush=True)
         return 1 if failed else 0
     finally:
+        drop_trees(trees_dir)
         subprocess.run(["docker", "rm", "-f", name], capture_output=True)
 
 

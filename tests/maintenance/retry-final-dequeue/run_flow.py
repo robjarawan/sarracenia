@@ -31,6 +31,7 @@ import signal
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 import uuid
 
@@ -248,6 +249,9 @@ def prepare_trees():
                  "import sarracenia; print(sarracenia.__file__)"],
                 env={**os.environ,
                      "PYTHONPATH": dest},
+                # Neutral cwd: `python -c` prepends cwd to sys.path,
+                # which would shadow the tree when run from a checkout.
+                cwd=tempfile.gettempdir(),
                 capture_output=True,
                 text=True,
                 timeout=remaining(60))
@@ -992,8 +996,11 @@ def _selftest_cleanup_body():
         "stale worktree registrations: %s" % out.stdout[-500:]
     print("PASS partial tree setup cleaned via real path", flush=True)
     # 2. A case that fails with a worker running must come back
-    # through run_one_case's cleanup with no survivors.
+    # through run_one_case's cleanup with no survivors, and the shared
+    # broker must be gone afterwards.
+    leaked_container = None
     with acquired_run() as (_trees_dir, _name):
+        leaked_container = _name
         real_body = CASE_BODIES["download-main"]
 
         def sabotaged(case_obj):
@@ -1012,24 +1019,22 @@ def _selftest_cleanup_body():
                 "retryfinal") if verify_worker(pid, "retryfinal")
         ]
         assert not leftovers, "workers survived: %s" % leftovers
+    assert leaked_container is not None \
+        and not container_present(leaked_container), \
+        "container survived cleanup: %s" % leaked_container
     print("PASS failed case cleaned via real path", flush=True)
     print("cleanup self-test: all PASS", flush=True)
     return 0
 
 
 def main():
-    global BROKER_PORT, DEAD_PORT
+    global BROKER_PORT, DEAD_PORT, RUN_DEADLINE_AT
     wanted_trees = sys.argv[1:2] or ["base", "fix"]
     wanted_cases = sys.argv[2:] or list(CASES)
     assert_real_home_clean()
+    begin_run_dir()
+    RUN_DEADLINE_AT = time.time() + RUN_DEADLINE
     DEAD_PORT = alloc_dead_port()
-    global RUN_DIR
-    run_id = "run-%s" % uuid.uuid4().hex[:8]
-    RUN_DIR = os.path.join(EVIDENCE, run_id)
-    if os.path.exists(RUN_DIR):
-        raise RuntimeError("refusing to overwrite existing run dir: %s"
-                           % RUN_DIR)
-    os.makedirs(RUN_DIR)
     trees_dir = None
     container_started = False
     try:

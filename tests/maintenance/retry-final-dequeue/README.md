@@ -14,7 +14,10 @@ export SCRATCH=/tmp/retryfinal-manual
 mkdir -p $SCRATCH/downloads
 export XDG_CONFIG_HOME=$SCRATCH/home/.config
 export XDG_CACHE_HOME=$SCRATCH/home/.cache
-export PYTHONPATH=$SCRATCH:$PWD
+# PYTHONPATH needs this directory (repro_cb) plus the Sarracenia checkout
+# under test. Workers record the imported file per run; a wrong tree here
+# silently tests the wrong code, so the kill step below verifies it.
+export PYTHONPATH=$SCRATCH:$PWD:/path/to/sarracenia-checkout
 export REPRO_RUNDIR=$SCRATCH REPRO_KILL=0 REPRO_MODE=download
 ```
 
@@ -43,20 +46,32 @@ sed -e "s/__QUEUE__/q_repro.manual/" -e "s/__SUBTOPIC__/manual.#/" \
 cp repro_cb.py $SCRATCH/
 ```
 
-Publish two messages pointing at files that do not exist:
+Publish two messages pointing at files that do not exist. The queue
+must exist first: messages published before the subscriber declares
+its queue are dropped with no error, so start the flow, wait for the
+declaration in its log, and only then inject:
 
 ```bash
+sr3 start subscribe/retryfinal
+LOG=$XDG_CACHE_HOME/sr3/log/subscribe_retryfinal_*.log
+for i in $(seq 1 90); do sleep 2
+  grep -q "queue declared q_repro.manual" $LOG 2>/dev/null && break
+done
+grep -m1 "queue declared" $LOG
 REPRO_TAG=manual REPRO_BASEURL=file://$SCRATCH/missing \
   REPRO_ROUTING=v03.post.manual.data python3 inject.py inject
 ```
 
-Start the flow and wait until the retry file holds 2 records, then stop:
+Wait until the retry file holds 2 records, then stop. Discover the
+queue filename instead of guessing its instance suffix:
 
 ```bash
-sr3 start subscribe/retryfinal
-Q=$XDG_CACHE_HOME/sr3/subscribe/retryfinal/diskqueue_work_retry_00
-for i in $(seq 1 150); do sleep 2; [ "$(wc -l < $Q)" = 2 ] && break; done
-wc -l $Q
+Q=
+for i in $(seq 1 150); do sleep 2
+  Q=$(ls $XDG_CACHE_HOME/sr3/subscribe/retryfinal/diskqueue_work_retry_[0-9]* 2>/dev/null | grep -v '\.new$' | head -n 1)
+  [ -n "$Q" ] && [ "$(wc -l < $Q)" = 2 ] && break; unset Q
+done
+[ -n "${Q:-}" ] && wc -l $Q
 sr3 stop subscribe/retryfinal
 ```
 
@@ -84,24 +99,31 @@ sr3 start subscribe/retryfinal
 sleep 60
 sr3 stop subscribe/retryfinal
 python3 -c "import json; print(sorted({r for e in map(json.loads, open('$SCRATCH/flow-events.jsonl')) for r in e['isRetry']}))"
-wc -l $XDG_CACHE_HOME/sr3/subscribe/retryfinal/diskqueue_work_retry_00
+Q=$(ls $XDG_CACHE_HOME/sr3/subscribe/retryfinal/diskqueue_work_retry_[0-9]* 2>/dev/null | grep -v '\.new$' | head -n 1)
+[ -n "${Q:-}" ] && wc -l $Q || echo "no queue file"
 ```
 
 Observed: on the baseline revision the queue file is gone after the
 kill and nothing arrives on restart (`0/2`); on the fixed revision the
 file is intact and both tagged records arrive (`2/2`).
 
-Exact cleanup when done:
+Exact cleanup when done (nothing outside this list is touched):
 
 ```bash
 sr3 stop subscribe/retryfinal
+rm $XDG_CONFIG_HOME/sr3/subscribe/retryfinal.conf
+rm -rf $XDG_CACHE_HOME/sr3/subscribe/retryfinal
+rm -rf $XDG_CACHE_HOME/sr3/log/subscribe_retryfinal_*.log
+rm -rf $XDG_CACHE_HOME/sr3/metrics/subscribe_retryfinal_*.json
+rm -rf $SCRATCH/downloads $SCRATCH/flow-events.jsonl $SCRATCH/kill.json
+rm -rf $SCRATCH/repro_cb.py $SCRATCH/__pycache__
 docker rm -f sr-retryfinal-manual
-rm -rf $SCRATCH
 ```
 
 No other container, process, queue, config or state dir is touched:
-PIDs signalled are only the case's own, the container is created and
-removed by name, and every path above sits under `$SCRATCH`.
+only the PIDs in this config's own pidfiles are ever signalled, the
+container is created and removed by its unique name, and every path
+above sits under `$SCRATCH`.
 
 ## Automated matrix
 
@@ -118,17 +140,13 @@ case instead of producing plausible-looking results from the wrong code.
 - Docker with the `rabbitmq:4-alpine` image (disposable container only).
 - Python 3.10+ with `py-amqp` (already an SR3 dependency).
 - `sr3` on `PATH`.
-- Two checkouts: the baseline and the revision under test, e.g.:
+- A Sarracenia checkout under test, on `PYTHONPATH` as shown in the
+  manual env block above. The automated matrix builds its own
+  worktrees instead (see below), so no manual checkout setup is
+  needed for `run_flow.py`.
 
-```bash
-git worktree add /tmp/wt149base 24de015c
-git worktree add /tmp/wt149fix <revision-under-test>
-```
-
-The `TREES` map at the top of `run_flow.py` defaults to those paths;
-adjust it if your checkouts live elsewhere. The broker entries in
-`templates/` use RabbitMQ's public default credentials for the
-disposable local container only.
+The broker entries in `templates/` use RabbitMQ's public default
+credentials for the disposable local container only.
 
 ## Run
 

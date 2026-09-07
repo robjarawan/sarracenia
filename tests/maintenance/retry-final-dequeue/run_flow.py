@@ -34,21 +34,59 @@ import time
 import uuid
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.dont_write_bytecode = True
+os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
 SR3 = shutil.which("sr3")
 if not SR3:
     raise RuntimeError("sr3 must be on PATH to run this reproduction")
-# Source repository the trees are built from; override with REPRO_REPO.
-REPO = os.environ.get(
-    "REPRO_REPO",
-    os.path.normpath(
-        os.path.join(
-            HERE, "..", "..", "..", "..", "..", "..", "sarracenia")))
+
+
+def resolve_repo():
+    """The source repository worktrees are built from. Prefers an
+    explicit REPRO_REPO, then the enclosing checkout of this fixture
+    (which is how it runs from the committed branch location)."""
+    explicit = os.environ.get("REPRO_REPO")
+    if explicit:
+        return explicit
+    out = subprocess.run(["git", "-C", HERE, "rev-parse",
+                          "--show-toplevel"],
+                         capture_output=True,
+                         text=True,
+                         timeout=60)
+    if out.returncode == 0 and out.stdout.strip():
+        return out.stdout.strip()
+    raise RuntimeError(
+        "cannot locate source repository: set REPRO_REPO explicitly")
+
+
+REPO = resolve_repo()
+
+
+def resolve_fix_rev():
+    """The fix revision under test floats with the PR branch: an
+    explicit REPRO_FIX_REV wins, otherwise the current fork branch head.
+    The resolved SHA is recorded in trees.json with the evidence."""
+    explicit = os.environ.get("REPRO_FIX_REV")
+    if explicit:
+        return explicit
+    out = subprocess.run(
+        ["git", "-C", REPO, "rev-parse", "--verify",
+         "myfork/fix/retry-final-dequeue-recovery"],
+        capture_output=True,
+        text=True,
+        timeout=60)
+    if out.returncode == 0 and out.stdout.strip():
+        return out.stdout.strip()
+    raise RuntimeError(
+        "cannot resolve fork branch head: fetch myfork or set "
+        "REPRO_FIX_REV explicitly")
+
+
 TREES_WANT = {
     "base": "24de015ccbdd20419ff4cc58e560478009d6ed20",
-    "fix": "19dbb236564dbd39c9024b3f7c0fae791d3b4334",
 }
 TREES = {}
-EVIDENCE = os.path.join(HERE, "evidence")
+EVIDENCE = os.environ.get("REPRO_EVIDENCE", os.path.join(HERE, "evidence"))
 EXCHANGE = "xs_retryfinal"
 
 # Allocated at runtime in main(); never fixed. The broker mapping comes
@@ -170,7 +208,9 @@ def prepare_trees():
     if os.path.exists(trees_dir):
         shutil.rmtree(trees_dir)
     os.makedirs(trees_dir)
-    for name, sha in TREES_WANT.items():
+    want = dict(TREES_WANT)
+    want["fix"] = resolve_fix_rev()
+    for name, sha in want.items():
         dest = os.path.join(trees_dir, name)
         out = subprocess.run(
             ["git", "-C", REPO, "worktree", "add", "--detach", dest, sha],
@@ -195,13 +235,27 @@ def prepare_trees():
 
 
 def drop_trees(trees_dir):
-    subprocess.run(["git", "-C", REPO, "worktree", "remove", "--force",
-                    os.path.join(trees_dir, "base")],
-                   capture_output=True)
-    subprocess.run(["git", "-C", REPO, "worktree", "remove", "--force",
-                    os.path.join(trees_dir, "fix")],
-                   capture_output=True)
+    """Remove the harness-owned worktrees, verifying every removal.
+    Raises on any failure: a half-removed tree must never pass silently."""
+    if trees_dir is None:
+        return
+    errors = []
+    for name in ("base", "fix"):
+        path = os.path.join(trees_dir, name)
+        if not os.path.exists(path) and not os.path.islink(path):
+            continue
+        out = subprocess.run(
+            ["git", "-C", REPO, "worktree", "remove", "--force", path],
+            capture_output=True,
+            text=True,
+            timeout=120)
+        if out.returncode != 0 or os.path.exists(path):
+            errors.append("%s: %s" % (name, out.stderr.strip()[-300:]))
+    if os.path.exists(trees_dir) and os.listdir(trees_dir):
+        errors.append("trees dir not empty: %s" % trees_dir)
     shutil.rmtree(trees_dir, ignore_errors=True)
+    if errors:
+        raise RuntimeError("worktree cleanup failed: %s" % " | ".join(errors))
 
 
 def assert_tree_identity(record, tree):
@@ -275,13 +329,15 @@ def pid_dead(pid):
 
 class Case:
 
-    def __init__(self, tree_name, tree, name, template, batch, mode,
-                 post_path):
+    def __init__(self, tree_name, tree, name, template, batch,
+                 post_path, cfgname=None):
         self.tree_name = tree_name
         self.tree = tree
         self.name = name
-        self.cfgname = "retryfinal" if template == "retryfinal.conf" \
-            else os.path.splitext(template)[0]
+        if cfgname is None:
+            cfgname = "retryfinal" if template == "retryfinal.conf" \
+                else os.path.splitext(template)[0]
+        self.cfgname = cfgname
         self.tag = "%s-%s" % (tree_name, name)
         self.casedir = os.path.join(EVIDENCE, self.tag)
         self.queue = "q_repro.%s" % self.tag.replace("-", ".")
@@ -470,9 +526,31 @@ class Case:
             json.dump(self.record, handle, indent=2)
 
 
-def run_download_main(tree_name, tree):
-    case = Case(tree_name, tree, "download-main", "retryfinal.conf", 4,
-                "download", False)
+# Per-case construction parameters: config template, batch size,
+# whether downloads succeed (post path), config-name override.
+# make_case builds the case without starting any worker, so cleanup
+# always knows exactly what it owns even if the body raises first.
+CASE_PARAMS = {
+    "download-main": ("retryfinal.conf", 4, False, None),
+    "post-main": ("retryfinal_post.conf", 4, True, None),
+    "C1-pre-dequeue": ("retryfinal.conf", 4, False, None),
+    "C2-partial": ("retryfinal.conf", 2, False, "retryfinal_p1"),
+    "C3-retire": ("retryfinal.conf", 4, False, None),
+}
+
+
+def make_case(tree_name, tree, case_name):
+    """Build the case without starting any worker, so cleanup always
+    knows exactly what it owns even if the body raises first."""
+    assert BROKER_PORT is not None and DEAD_PORT is not None, \
+        "ports must be allocated before building cases"
+    template, batch, post_path, cfgname = CASE_PARAMS[case_name]
+    return Case(tree_name, tree, case_name, template, batch, post_path,
+                cfgname)
+
+
+def run_download_main(case):
+    tree_name = case.tree_name
     case.seed_until_queued("work")
     assert broker_depth(case.queue) in (0, None)
     marker = case.kill_after_dequeue("download")
@@ -488,9 +566,8 @@ def run_download_main(tree_name, tree):
     return case
 
 
-def run_post_main(tree_name, tree):
-    case = Case(tree_name, tree, "post-main", "retryfinal_post.conf", 4,
-                "post", True)
+def run_post_main(case):
+    tree_name = case.tree_name
     case.setup_files(create=True)
     case.seed_until_queued("post")
     assert queue_lines(case.casedir, case.cfgname, "work") in (None, 0), \
@@ -504,25 +581,14 @@ def run_post_main(tree_name, tree):
     return case
 
 
-def run_c1(tree_name, tree):
-    case = Case(tree_name, tree, "C1-pre-dequeue", "retryfinal.conf", 4,
-                "download", False)
+def run_c1(case):
     case.seed_until_queued("work")
     case.restart_and_count(2, 2, "work", phase="restart")
     case.save("PASS")
     return case
 
 
-def run_c2(tree_name, tree):
-    p1 = os.path.join(HERE, "templates", "subscribe", "retryfinal.conf")
-    case = Case(tree_name, tree, "C2-partial", "retryfinal.conf", 2,
-                "partial", False)
-    case.cfgname = "retryfinal_p1"
-    confdir = os.path.join(case.casedir, "home", ".config", "sr3",
-                           "subscribe")
-    os.rename(
-        os.path.join(confdir, "retryfinal.conf"),
-        os.path.join(confdir, "retryfinal_p1.conf"))
+def run_c2(case):
     case.seed_until_queued("work")
     marker = case.kill_after_dequeue("partial")
     assert marker["dequeued"] == 1, marker
@@ -532,9 +598,7 @@ def run_c2(tree_name, tree):
     return case
 
 
-def run_c3(tree_name, tree):
-    case = Case(tree_name, tree, "C3-retire", "retryfinal.conf", 4,
-                "download", False)
+def run_c3(case):
     case.seed_until_queued("work")
     # Now make the downloads succeed and let the flow retire the batch.
     os.makedirs(case.baseurl, exist_ok=True)
@@ -573,38 +637,63 @@ def run_c3(tree_name, tree):
     return case
 
 
-CASES = {
+CASE_BODIES = {
     "download-main": run_download_main,
     "post-main": run_post_main,
     "C1-pre-dequeue": run_c1,
     "C2-partial": run_c2,
     "C3-retire": run_c3,
 }
+CASES = list(CASE_BODIES)
 
 
 def owned_pids(casedir, cfgname):
-    """PIDs read from this case's own pidfiles. The only identities this
-    harness may ever signal: exact, run-owned, never name-matched."""
-    pids = set()
+    """Worker PIDs from SR3's own state: `subscribe_<cfg>_<nn>.pid`
+    files hold the worker PID (instance.py writes `%d`), and the
+    `running`/`starting` marker files show what sr3 believes about the
+    config. These exact PIDs are the only identities this harness may
+    ever signal; each is identity-checked before use."""
     root = state_dir(casedir, cfgname)
-    if not os.path.isdir(root):
-        return pids
-    for name in os.listdir(root):
-        if not name.endswith(".pid"):
-            continue
-        try:
-            with open(os.path.join(root, name)) as handle:
-                pids.add(int(handle.read().strip().split()[0]))
-        except (ValueError, OSError):
-            pass
+    pids = {}
+    if os.path.isdir(root):
+        for name in sorted(os.listdir(root)):
+            if not name.endswith(".pid"):
+                continue
+            try:
+                with open(os.path.join(root, name)) as handle:
+                    pid = int(handle.read().strip().split()[0])
+            except (ValueError, OSError):
+                continue
+            pids[pid] = name
     return pids
 
 
+def verify_worker(pid, cfgname):
+    """Confirm /proc identity before signaling: the process must be an
+    sr3 instance worker for this config. Returns False if already dead
+    (nothing to do). Raises on identity mismatch instead of signaling a
+    stranger, including on PID reuse."""
+    try:
+        with open("/proc/%d/cmdline" % pid, "rb") as handle:
+            cmdline = handle.read().replace(b"\0", b" ").decode()
+    except (FileNotFoundError, ProcessLookupError):
+        return False
+    if "instance.py" not in cmdline \
+            or "subscribe/%s" % cfgname not in cmdline:
+        raise RuntimeError(
+            "pid %d identity mismatch, refusing to signal: %r" %
+            (pid, cmdline[:160]))
+    return True
+
+
 def terminate_owned(casedir, cfgname):
-    """Stop exactly this case's workers: SIGTERM, wait, escalate to
-    SIGKILL, then verify every owned PID is dead. Raises if any owned
-    PID survives. Never touches any other process."""
-    pending = owned_pids(casedir, cfgname)
+    """Stop exactly this case's workers: SIGTERM verified owners, wait,
+    escalate survivors to SIGKILL, then verify every owned PID is dead.
+    Raises if any owned PID survives. Never touches any other process."""
+    pending = {
+        pid for pid in owned_pids(casedir, cfgname)
+        if verify_worker(pid, cfgname)
+    }
     for pid in pending:
         try:
             os.kill(pid, signal.SIGTERM)
@@ -612,18 +701,24 @@ def terminate_owned(casedir, cfgname):
             pass
     end = time.time() + 30
     while time.time() < end:
-        pending = {p for p in pending if not pid_dead(p)}
+        pending = {
+            pid for pid in pending if verify_worker(pid, cfgname)
+        }
         if not pending:
             break
         time.sleep(1)
     for pid in pending:
-        try:
-            os.kill(pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
+        # Re-verify: only a confirmed owner is ever escalated.
+        if verify_worker(pid, cfgname):
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
     end = time.time() + 15
     while time.time() < end:
-        pending = {p for p in pending if not pid_dead(p)}
+        pending = {
+            pid for pid in pending if verify_worker(pid, cfgname)
+        }
         if not pending:
             return
         time.sleep(1)
@@ -648,22 +743,38 @@ def assert_real_home_clean():
             "real home contains repro artifacts, refusing: %s" % hits[:5])
 
 
+# Sockets held open for the whole run so nobody else can take the ports.
+_HELD_SOCKETS = []
+
+
 def alloc_dead_port():
-    """A currently-unused loopback port for the dead post broker,
-    verified refused immediately before use."""
+    """A verifiably closed loopback port for the dead post broker. The
+    bound socket is retained (never closed until handoff at process
+    exit), so the port cannot be taken between allocation and use, while
+    connects are still refused because nothing listens on it."""
     for _attempt in range(20):
-        probe = socket.socket()
-        probe.bind(("127.0.0.1", 0))
-        port = probe.getsockname()[1]
-        probe.close()
+        sock = socket.socket()
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
         check = socket.socket()
         check.settimeout(2)
         try:
             check.connect(("127.0.0.1", port))
             check.close()
         except OSError:
+            _HELD_SOCKETS.append(sock)
             return port
+        sock.close()
     raise RuntimeError("no verifiably closed loopback port found")
+
+
+def release_held_ports():
+    for sock in _HELD_SOCKETS:
+        try:
+            sock.close()
+        except OSError:
+            pass
+    del _HELD_SOCKETS[:]
 
 
 def docker_broker_port(name):
@@ -675,19 +786,9 @@ def docker_broker_port(name):
     return int(out.stdout.strip().rsplit(":", 1)[1])
 
 
-def main():
-    global BROKER_PORT, DEAD_PORT
-    wanted_trees = sys.argv[1:2] or ["base", "fix"]
-    wanted_cases = sys.argv[2:] or list(CASES)
-    assert_real_home_clean()
-    DEAD_PORT = alloc_dead_port()
-    if os.path.exists(EVIDENCE):
-        shutil.rmtree(EVIDENCE)
-    os.makedirs(EVIDENCE)
-    trees_dir = prepare_trees()
-    print("trees: %s" % TREES, flush=True)
-    with open(os.path.join(EVIDENCE, "trees.json"), "w") as handle:
-        json.dump({"want": TREES_WANT, "paths": TREES}, handle, indent=2)
+def start_broker_container():
+    """Start the bounded disposable broker. Returns its unique name.
+    Only this exact name is ever removed."""
     name = "sr-retryfinal-%s" % uuid.uuid4().hex[:8]
     subprocess.run([
         "docker", "run", "-d", "--rm", "--name", name,
@@ -697,12 +798,123 @@ def main():
     ],
                    check=True,
                    capture_output=True)
-    BROKER_PORT = docker_broker_port(name)
-    print("broker %s on 127.0.0.1:%d, dead post port %d" %
-          (name, BROKER_PORT, DEAD_PORT),
-          flush=True)
-    run_deadline = time.time() + RUN_DEADLINE
+    return name
+
+
+def container_present(name):
+    out = subprocess.run(
+        ["docker", "ps", "-a", "--filter", "name=%s" % name,
+         "--format", "{{.Names}}"],
+        capture_output=True,
+        text=True,
+        timeout=60)
+    return name in out.stdout.split()
+
+
+def selftest_cleanup():
+    """Prove every cleanup path by failing deliberately after each
+    acquisition step. Prints PASS per step, raises on any miss."""
+    global BROKER_PORT, DEAD_PORT
+    # No broker is needed: the worker only has to start far enough to
+    # write its pidfile. Point it at a verified-closed port.
+    DEAD_PORT = alloc_dead_port()
+    BROKER_PORT = DEAD_PORT
     try:
+        return _selftest_cleanup_body()
+    finally:
+        release_held_ports()
+
+
+def _selftest_cleanup_body():
+    """Prove every cleanup path by failing deliberately after each
+    acquisition step. Prints PASS per step, raises on any miss."""
+    # 1. Trees created, then a failure: registrations and dirs must go.
+    trees_dir = prepare_trees()
+    try:
+        raise RuntimeError("probe failure after tree setup")
+    except RuntimeError:
+        drop_trees(trees_dir)
+    out = subprocess.run(["git", "-C", REPO, "worktree", "list",
+                          "--porcelain"],
+                         capture_output=True,
+                         text=True,
+                         timeout=60)
+    assert "trees/base" not in out.stdout and "trees/fix" not in out.stdout, \
+        "stale worktree registrations: %s" % out.stdout[-500:]
+    print("PASS trees cleaned after probe failure", flush=True)
+    # 2. Container started, then a failure: it must be gone.
+    name = start_broker_container()
+    try:
+        raise RuntimeError("probe failure after container start")
+    except RuntimeError:
+        out = subprocess.run(["docker", "rm", "-f", name],
+                             capture_output=True,
+                             text=True,
+                             timeout=120)
+        assert out.returncode == 0, "docker rm failed: %s" % out.stderr
+    assert not container_present(name), "container survived cleanup"
+    print("PASS container cleaned after probe failure", flush=True)
+    # 3. Worker started, then a failure: exact owned PIDs must die.
+    trees_dir = prepare_trees()
+    try:
+        case_obj = make_case("base", TREES["base"], "download-main")
+        try:
+            rc = case_obj.start("probe")
+            assert rc == 0, "sr3 start rc=%s" % rc
+            wait_until(
+                "worker pidfile", 120, lambda: owned_pids(
+                    case_obj.casedir, case_obj.cfgname) or None)
+            raise RuntimeError("probe failure with worker running")
+        except BaseException as primary:
+            terminate_owned(case_obj.casedir, case_obj.cfgname)
+            leftovers = [
+                pid for pid in owned_pids(case_obj.casedir,
+                                          case_obj.cfgname)
+                if verify_worker(pid, case_obj.cfgname)
+            ]
+            assert not leftovers, "workers survived: %s" % leftovers
+            assert "probe failure with worker running" in str(primary)
+        print("PASS owned workers cleaned after probe failure", flush=True)
+    finally:
+        drop_trees(trees_dir)
+    print("cleanup self-test: all PASS", flush=True)
+    return 0
+
+
+def main():
+    global BROKER_PORT, DEAD_PORT
+    wanted_trees = sys.argv[1:2] or ["base", "fix"]
+    wanted_cases = sys.argv[2:] or list(CASES)
+    assert_real_home_clean()
+    DEAD_PORT = alloc_dead_port()
+    if os.path.exists(EVIDENCE):
+        shutil.rmtree(EVIDENCE)
+    os.makedirs(EVIDENCE)
+    trees_dir = None
+    container_started = False
+    try:
+        trees_dir = prepare_trees()
+        print("trees: %s" % TREES, flush=True)
+        resolved = {}
+        for tree_name, path in TREES.items():
+            out = subprocess.run(["git", "-C", path, "rev-parse", "HEAD"],
+                                 capture_output=True,
+                                 text=True,
+                                 timeout=60)
+            resolved[tree_name] = out.stdout.strip()
+        with open(os.path.join(EVIDENCE, "trees.json"), "w") as handle:
+            json.dump({"base_pin": TREES_WANT["base"],
+                       "resolved": resolved,
+                       "paths": TREES},
+                      handle,
+                      indent=2)
+        name = start_broker_container()
+        container_started = True
+        BROKER_PORT = docker_broker_port(name)
+        print("broker %s on 127.0.0.1:%d, dead post port %d" %
+              (name, BROKER_PORT, DEAD_PORT),
+              flush=True)
+        run_deadline = time.time() + RUN_DEADLINE
         env = dict(os.environ)
         env.update(broker_env())
         wait_until(
@@ -719,10 +931,12 @@ def main():
             for case_name in wanted_cases:
                 if time.time() > run_deadline:
                     raise RuntimeError("overall run deadline exceeded")
-                case_obj = None
+                # make_case starts no workers, so cleanup always knows
+                # exactly what it owns even if the body raises first.
+                case_obj = make_case(tree_name, TREES[tree_name],
+                                     case_name)
                 try:
-                    case_obj = CASES[case_name](tree_name,
-                                               TREES[tree_name])
+                    CASE_BODIES[case_name](case_obj)
                     with open(
                             os.path.join(case_obj.casedir,
                                          "evidence.json")) as handle:
@@ -738,22 +952,38 @@ def main():
                     summary.append(
                         [tree_name, case_name, "FAIL: %s" % primary])
                     failed += 1
-                    if case_obj is not None:
-                        try:
-                            terminate_owned(case_obj.casedir,
-                                            case_obj.cfgname)
-                        except Exception as cleanup_err:
-                            raise RuntimeError(
-                                "cleanup failed after case failure: %s"
-                                % primary) from cleanup_err
+                    try:
+                        terminate_owned(case_obj.casedir,
+                                        case_obj.cfgname)
+                    except Exception as cleanup_err:
+                        raise RuntimeError(
+                            "cleanup failed after case failure: %s"
+                            % primary) from cleanup_err
         with open(os.path.join(EVIDENCE, "summary.json"), "w") as handle:
             json.dump(summary, handle, indent=2)
         print("failed: %d" % failed, flush=True)
         return 1 if failed else 0
     finally:
-        drop_trees(trees_dir)
-        subprocess.run(["docker", "rm", "-f", name], capture_output=True)
+        cleanup_errors = []
+        try:
+            drop_trees(trees_dir)
+        except Exception as err:
+            cleanup_errors.append("trees: %s" % err)
+        release_held_ports()
+        if container_started:
+            out = subprocess.run(["docker", "rm", "-f", name],
+                                 capture_output=True,
+                                 text=True,
+                                 timeout=120)
+            if out.returncode != 0:
+                cleanup_errors.append(
+                    "docker rm: %s" % out.stderr.strip()[-300:])
+        if cleanup_errors:
+            raise RuntimeError("cleanup failed: %s" %
+                               " | ".join(cleanup_errors))
 
 
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "--test-cleanup":
+        sys.exit(selftest_cleanup())
     sys.exit(main())

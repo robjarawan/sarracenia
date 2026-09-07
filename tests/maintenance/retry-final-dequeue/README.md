@@ -37,13 +37,13 @@ name, `__SUBTOPIC__` a fresh `name.#`, `__BATCH__` 4, `__PORT__` the
 mapped port, `__DOWNLOADS__` the scratch downloads directory):
 
 ```bash
-mkdir -p $XDG_CONFIG_HOME/sr3/subscribe
+mkdir -p "$XDG_CONFIG_HOME/sr3/subscribe"
 sed -e "s/__QUEUE__/q_repro.manual/" -e "s/__SUBTOPIC__/manual.#/" \
   -e "s/__BATCH__/4/" -e "s/__PORT__/$PORT/" \
   -e "s|__DOWNLOADS__|$SCRATCH/downloads|" \
   templates/subscribe/retryfinal.conf \
-  > $XDG_CONFIG_HOME/sr3/subscribe/retryfinal.conf
-cp repro_cb.py $SCRATCH/
+  > "$XDG_CONFIG_HOME/sr3/subscribe/retryfinal.conf"
+cp repro_cb.py "$SCRATCH/"
 ```
 
 Publish two messages pointing at files that do not exist. The queue
@@ -53,25 +53,27 @@ declaration in its log, and only then inject:
 
 ```bash
 sr3 start subscribe/retryfinal
-LOG=$XDG_CACHE_HOME/sr3/log/subscribe_retryfinal_*.log
+LOG="$XDG_CACHE_HOME"/sr3/log/subscribe_retryfinal_*.log
 for i in $(seq 1 90); do sleep 2
   grep -q "queue declared q_repro.manual" $LOG 2>/dev/null && break
 done
-grep -m1 "queue declared" $LOG
+grep -m1 "queue declared" $LOG || { echo "TIMEOUT: queue never declared"; exit 1; }
 REPRO_TAG=manual REPRO_BASEURL=file://$SCRATCH/missing \
   REPRO_ROUTING=v03.post.manual.data python3 inject.py inject
 ```
 
 Wait until the retry file holds 2 records, then stop. Discover the
-queue filename instead of guessing its instance suffix:
+queue filename instead of guessing its instance suffix, and require
+exactly one match:
 
 ```bash
 Q=
 for i in $(seq 1 150); do sleep 2
-  Q=$(ls $XDG_CACHE_HOME/sr3/subscribe/retryfinal/diskqueue_work_retry_[0-9]* 2>/dev/null | grep -v '\.new$' | head -n 1)
-  [ -n "$Q" ] && [ "$(wc -l < $Q)" = 2 ] && break; unset Q
+  Q=$(ls "$XDG_CACHE_HOME"/sr3/subscribe/retryfinal/diskqueue_work_retry_[0-9]* 2>/dev/null | grep -v '\.new$')
+  [ "$(printf '%s' "$Q" | grep -c .)" = 1 ] && [ "$(wc -l < "$Q")" = 2 ] && break; unset Q
 done
-[ -n "${Q:-}" ] && wc -l $Q
+[ -n "${Q:-}" ] || { echo "TIMEOUT: retry file never held 2 records"; exit 1; }
+wc -l "$Q"
 sr3 stop subscribe/retryfinal
 ```
 
@@ -81,7 +83,10 @@ the final batch is dequeued:
 ```bash
 export REPRO_KILL=1
 sr3 start subscribe/retryfinal
-# wait for $SCRATCH/kill.json to appear; the worker is then dead
+for i in $(seq 1 150); do sleep 2
+  [ -f "$SCRATCH/kill.json" ] && break
+done
+[ -f "$SCRATCH/kill.json" ] || { echo "TIMEOUT: kill marker never appeared"; exit 1; }
 ```
 
 Confirm the dead worker ran the intended checkout, not an installed copy:
@@ -94,29 +99,35 @@ Second restart, disarmed, and observe what comes back:
 
 ```bash
 export REPRO_KILL=0
-rm -f $SCRATCH/flow-events.jsonl
+rm -f "$SCRATCH/flow-events.jsonl"
 sr3 start subscribe/retryfinal
 sleep 60
 sr3 stop subscribe/retryfinal
 python3 -c "import json; print(sorted({r for e in map(json.loads, open('$SCRATCH/flow-events.jsonl')) for r in e['isRetry']}))"
-Q=$(ls $XDG_CACHE_HOME/sr3/subscribe/retryfinal/diskqueue_work_retry_[0-9]* 2>/dev/null | grep -v '\.new$' | head -n 1)
-[ -n "${Q:-}" ] && wc -l $Q || echo "no queue file"
+Q=$(ls "$XDG_CACHE_HOME"/sr3/subscribe/retryfinal/diskqueue_work_retry_[0-9]* 2>/dev/null | grep -v '\.new$')
+case "$(printf '%s' "$Q" | grep -c .)" in
+  0) echo "no queue file: nothing recovered (baseline outcome)" ;;
+  1) wc -l "$Q" ;;
+  *) echo "want zero or one queue file, got: $Q"; exit 1 ;;
+esac
 ```
 
 Observed: on the baseline revision the queue file is gone after the
 kill and nothing arrives on restart (`0/2`); on the fixed revision the
 file is intact and both tagged records arrive (`2/2`).
 
-Exact cleanup when done (nothing outside this list is touched):
+Exact cleanup when done (nothing outside this list is touched).
+Every variable is quoted and guarded so an empty value stops instead
+of deleting the wrong path:
 
 ```bash
 sr3 stop subscribe/retryfinal
-rm $XDG_CONFIG_HOME/sr3/subscribe/retryfinal.conf
-rm -rf $XDG_CACHE_HOME/sr3/subscribe/retryfinal
-rm -rf $XDG_CACHE_HOME/sr3/log/subscribe_retryfinal_*.log
-rm -rf $XDG_CACHE_HOME/sr3/metrics/subscribe_retryfinal_*.json
-rm -rf $SCRATCH/downloads $SCRATCH/flow-events.jsonl $SCRATCH/kill.json
-rm -rf $SCRATCH/repro_cb.py $SCRATCH/__pycache__
+rm "${XDG_CONFIG_HOME:?}"/sr3/subscribe/retryfinal.conf
+rm -rf "${XDG_CACHE_HOME:?}"/sr3/subscribe/retryfinal
+rm -rf "${XDG_CACHE_HOME:?}"/sr3/log/subscribe_retryfinal_*.log
+rm -rf "${XDG_CACHE_HOME:?}"/sr3/metrics/subscribe_retryfinal_*.json
+rm -rf "${SCRATCH:?}"/downloads "${SCRATCH:?}"/flow-events.jsonl "${SCRATCH:?}"/kill.json
+rm -rf "${SCRATCH:?}"/repro_cb.py "${SCRATCH:?}"/__pycache__
 docker rm -f sr-retryfinal-manual
 ```
 

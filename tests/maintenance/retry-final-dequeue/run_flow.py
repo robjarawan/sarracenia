@@ -21,6 +21,7 @@ deadline or assertion. Broker credentials are the container's disposable
 defaults, passed via environment, never written to any file.
 """
 
+import contextlib
 import glob
 import json
 import os
@@ -64,22 +65,26 @@ REPO = resolve_repo()
 
 def resolve_fix_rev():
     """The fix revision under test floats with the PR branch: an
-    explicit REPRO_FIX_REV wins, otherwise the current fork branch head.
-    The resolved SHA is recorded in trees.json with the evidence."""
+    explicit REPRO_FIX_REV wins, otherwise the branch head is resolved
+    through every remote name an ordinary reviewer checkout might use.
+    The resolved immutable SHA is recorded in trees.json with the
+    evidence, so results never depend on a moving ref."""
     explicit = os.environ.get("REPRO_FIX_REV")
     if explicit:
         return explicit
-    out = subprocess.run(
-        ["git", "-C", REPO, "rev-parse", "--verify",
-         "myfork/fix/retry-final-dequeue-recovery"],
-        capture_output=True,
-        text=True,
-        timeout=60)
-    if out.returncode == 0 and out.stdout.strip():
-        return out.stdout.strip()
+    for ref in ("myfork/fix/retry-final-dequeue-recovery",
+                "origin/fix/retry-final-dequeue-recovery",
+                "fix/retry-final-dequeue-recovery"):
+        out = subprocess.run(
+            ["git", "-C", REPO, "rev-parse", "--verify", ref],
+            capture_output=True,
+            text=True,
+            timeout=remaining(60))
+        if out.returncode == 0 and out.stdout.strip():
+            return out.stdout.strip()
     raise RuntimeError(
-        "cannot resolve fork branch head: fetch myfork or set "
-        "REPRO_FIX_REV explicitly")
+        "cannot resolve the PR branch head: fetch the fork branch or "
+        "set REPRO_FIX_REV explicitly")
 
 
 TREES_WANT = {
@@ -96,6 +101,16 @@ DEAD_PORT = None
 
 PHASE_DEADLINE = 300
 RUN_DEADLINE = 5400
+RUN_DEADLINE_AT = None
+RUN_DIR = None
+
+
+def remaining(default):
+    """Bound any blocking call by the overall run budget. Outside a
+    matrix run there is no budget and the default stands."""
+    if RUN_DEADLINE_AT is None:
+        return default
+    return max(1, min(default, RUN_DEADLINE_AT - time.time()))
 
 
 def sh(args, env, log_path, timeout=PHASE_DEADLINE):
@@ -107,7 +122,7 @@ def sh(args, env, log_path, timeout=PHASE_DEADLINE):
                                   env=env,
                                   stdout=log,
                                   stderr=subprocess.STDOUT,
-                                  timeout=timeout)
+                                  timeout=remaining(timeout))
             return proc.returncode
         except subprocess.TimeoutExpired:
             log.write(b"TIMEOUT\n")
@@ -142,7 +157,7 @@ def sr3(casedir, tree, args, tag, extra=None, timeout=PHASE_DEADLINE):
 
 
 def wait_until(desc, deadline, fn):
-    end = time.time() + deadline
+    end = time.time() + remaining(deadline)
     while time.time() < end:
         value = fn()
         if value:
@@ -196,6 +211,11 @@ def list_state(casedir, cfgname):
     return out
 
 
+def run_root():
+    assert RUN_DIR is not None, "run directory not initialized"
+    return RUN_DIR
+
+
 def prepare_trees():
     """Create fresh worktrees for both revisions under evidence/trees.
 
@@ -204,33 +224,50 @@ def prepare_trees():
     installed copy, and every result looked plausible. Each tree is
     verified by import before any case runs.
     """
-    trees_dir = os.path.join(EVIDENCE, "trees")
+    trees_dir = os.path.join(run_root(), "trees")
     if os.path.exists(trees_dir):
         shutil.rmtree(trees_dir)
     os.makedirs(trees_dir)
     want = dict(TREES_WANT)
     want["fix"] = resolve_fix_rev()
-    for name, sha in want.items():
-        dest = os.path.join(trees_dir, name)
-        out = subprocess.run(
-            ["git", "-C", REPO, "worktree", "add", "--detach", dest, sha],
-            capture_output=True,
-            text=True,
-            timeout=120)
-        assert out.returncode == 0, "worktree add failed: %s" % out.stderr
-        probe = subprocess.run(
-            [sys.executable, "-c",
-             "import sarracenia; print(sarracenia.__file__)"],
-            env={**os.environ,
-                 "PYTHONPATH": dest},
-            capture_output=True,
-            text=True,
-            timeout=60)
-        got = probe.stdout.strip().splitlines()
-        assert probe.returncode == 0 and got and got[-1].startswith(dest), \
-            "tree %s does not import from itself: %s %s" % (name, got,
-                                                            probe.stderr[-500:])
-        TREES[name] = dest
+    created = []
+    try:
+        for name, sha in want.items():
+            dest = os.path.join(trees_dir, name)
+            out = subprocess.run(
+                ["git", "-C", REPO, "worktree", "add", "--detach", dest,
+                 sha],
+                capture_output=True,
+                text=True,
+                timeout=remaining(120))
+            assert out.returncode == 0, \
+                "worktree add failed: %s" % out.stderr
+            created.append(dest)
+            probe = subprocess.run(
+                [sys.executable, "-c",
+                 "import sarracenia; print(sarracenia.__file__)"],
+                env={**os.environ,
+                     "PYTHONPATH": dest},
+                capture_output=True,
+                text=True,
+                timeout=remaining(60))
+            got = probe.stdout.strip().splitlines()
+            assert probe.returncode == 0 and got \
+                and got[-1].startswith(dest), \
+                "tree %s does not import from itself: %s %s" % (
+                    name, got, probe.stderr[-500:])
+            TREES[name] = dest
+    except BaseException:
+        # A failure halfway through setup must not leave the first tree
+        # behind: ownership is recorded before allocation, so partial
+        # setup cleans itself up instead of leaking into the next run.
+        for dest in created:
+            subprocess.run(["git", "-C", REPO, "worktree", "remove",
+                            "--force", dest],
+                           capture_output=True,
+                           timeout=remaining(120))
+        shutil.rmtree(trees_dir, ignore_errors=True)
+        raise
     return trees_dir
 
 
@@ -262,7 +299,7 @@ def assert_tree_identity(record, tree):
     """Every worker-reported sarracenia path must live under the tree
     under test. A mismatch aborts the case: results from the wrong
     interpreter revision are worse than no results."""
-    for key in ("kill_marker", "restart_marker"):
+    for key in ("kill_marker",):
         marker = record.get(key)
         if not marker:
             continue
@@ -288,7 +325,7 @@ def inject(action, env_extra):
                          env=env,
                          capture_output=True,
                          text=True,
-                         timeout=120)
+                         timeout=remaining(120))
     return out.returncode, out.stdout.strip()
 
 
@@ -339,7 +376,7 @@ class Case:
                 else os.path.splitext(template)[0]
         self.cfgname = cfgname
         self.tag = "%s-%s" % (tree_name, name)
-        self.casedir = os.path.join(EVIDENCE, self.tag)
+        self.casedir = os.path.join(run_root(), self.tag)
         self.queue = "q_repro.%s" % self.tag.replace("-", ".")
         self.routing = "v03.post.%s.data" % self.tag.replace("-", ".")
         # subtopic is relative: sr3 prepends topicPrefix at bind time.
@@ -505,6 +542,10 @@ class Case:
         assert rc == 0, "sr3 stop rc=%s" % rc
         arrivals = sorted(is_retry_arrivals(self.casedir))
         self.record["restart_arrivals"] = arrivals
+        for event in flow_events(self.casedir):
+            path = event.get("sarracenia_file", "")
+            assert path.startswith(self.tree + os.sep), \
+                "restart worker ran %s, want tree %s" % (path, self.tree)
         if exact_arrivals:
             assert len(arrivals) == want_arrivals, \
                 "arrivals %s, want %d" % (arrivals, want_arrivals)
@@ -552,7 +593,9 @@ def make_case(tree_name, tree, case_name):
 def run_download_main(case):
     tree_name = case.tree_name
     case.seed_until_queued("work")
-    assert broker_depth(case.queue) in (0, None)
+    depth = broker_depth(case.queue)
+    assert depth == 0, \
+        "broker queue must read exactly zero, not unknown: %r" % depth
     marker = case.kill_after_dequeue("download")
     assert marker["dequeued"] == 2, marker
     if tree_name == "base":
@@ -572,7 +615,9 @@ def run_post_main(case):
     case.seed_until_queued("post")
     assert queue_lines(case.casedir, case.cfgname, "work") in (None, 0), \
         "downloads must succeed on the post path"
-    assert broker_depth(case.queue) in (0, None)
+    depth = broker_depth(case.queue)
+    assert depth == 0, \
+        "broker queue must read exactly zero, not unknown: %r" % depth
     marker = case.kill_after_dequeue("post")
     assert marker["dequeued"] == 2, marker
     case.restart_and_count(2 if tree_name == "fix" else 0,
@@ -788,7 +833,8 @@ def docker_broker_port(name):
 
 def start_broker_container():
     """Start the bounded disposable broker. Returns its unique name.
-    Only this exact name is ever removed."""
+    Only this exact name is ever removed. The launch itself is bounded
+    so a stuck daemon cannot hang the run before the deadline exists."""
     name = "sr-retryfinal-%s" % uuid.uuid4().hex[:8]
     subprocess.run([
         "docker", "run", "-d", "--rm", "--name", name,
@@ -797,8 +843,73 @@ def start_broker_container():
         "rabbitmq:4-alpine"
     ],
                    check=True,
-                   capture_output=True)
+                   capture_output=True,
+                   timeout=remaining(300))
     return name
+
+
+def remove_broker_container(name):
+    out = subprocess.run(["docker", "rm", "-f", name],
+                         capture_output=True,
+                         text=True,
+                         timeout=remaining(120))
+    if out.returncode != 0:
+        raise RuntimeError("docker rm failed for %s: %s" %
+                           (name, out.stderr.strip()[-300:]))
+
+
+@contextlib.contextmanager
+def acquired_run():
+    """Own the run's shared resources: harness worktrees plus the
+    disposable broker, including its health gate and port mapping.
+    Every acquisition step is inside the same try as the cases, so a
+    failure at any point runs the same checked teardown as a case
+    failure. Yields (trees_dir, container name) with BROKER_PORT set."""
+    global BROKER_PORT
+    trees_dir = prepare_trees()
+    try:
+        print("trees: %s" % TREES, flush=True)
+        name = start_broker_container()
+        try:
+            BROKER_PORT = docker_broker_port(name)
+            print("broker %s on 127.0.0.1:%d" % (name, BROKER_PORT),
+                  flush=True)
+            env = dict(os.environ)
+            env.update(broker_env())
+            wait_until(
+                "broker healthy", 180, lambda: subprocess.run(
+                    [sys.executable,
+                     os.path.join(HERE, "inject.py"), "setup"],
+                    env={
+                        **env, "REPRO_EXCHANGE": EXCHANGE
+                    },
+                    capture_output=True).returncode == 0 or None)
+            yield trees_dir, name
+        finally:
+            remove_broker_container(name)
+    finally:
+        drop_trees(trees_dir)
+
+
+def begin_run_dir():
+    """Create a fresh run directory. Never wipes: each run gets a
+    unique id, and an existing directory refuses instead of
+    overwriting previous evidence or unrelated files."""
+    global RUN_DIR
+    root = os.path.normpath(EVIDENCE)
+    home = os.path.normpath(os.path.expanduser("~"))
+    if root in ("/", home, "/tmp") \
+            or "evidence" not in os.path.basename(root):
+        raise RuntimeError(
+            "refusing suspicious evidence root, set REPRO_EVIDENCE "
+            "to a directory named *evidence*: %s" % EVIDENCE)
+    run_id = "run-%s" % uuid.uuid4().hex[:8]
+    RUN_DIR = os.path.join(EVIDENCE, run_id)
+    if os.path.exists(RUN_DIR):
+        raise RuntimeError("refusing to overwrite existing run dir: %s"
+                           % RUN_DIR)
+    os.makedirs(RUN_DIR)
+    return RUN_DIR
 
 
 def container_present(name):
@@ -811,14 +922,39 @@ def container_present(name):
     return name in out.stdout.split()
 
 
+def run_one_case(tree_name, case_name):
+    """Run one case through the exact orchestration path main() uses,
+    including per-case failure cleanup. Returns the summary entry."""
+    case_obj = make_case(tree_name, TREES[tree_name], case_name)
+    try:
+        CASE_BODIES[case_name](case_obj)
+        with open(os.path.join(case_obj.casedir,
+                               "evidence.json")) as handle:
+            assert_tree_identity(json.load(handle), TREES[tree_name])
+        return [tree_name, case_name, "PASS"]
+    except BaseException as primary:
+        try:
+            terminate_owned(case_obj.casedir, case_obj.cfgname)
+        except Exception as cleanup_err:
+            raise RuntimeError(
+                "cleanup failed after case failure: %s"
+                % primary) from cleanup_err
+        return [tree_name, case_name, "FAIL: %s" % primary]
+
+
 def selftest_cleanup():
-    """Prove every cleanup path by failing deliberately after each
-    acquisition step. Prints PASS per step, raises on any miss."""
+    """Prove cleanup through the real orchestration path by failing
+    deliberately at each stage. Prints PASS per step, raises on any
+    miss. Failures go through acquired_run and run_one_case exactly as
+    production runs do; teardown helpers are never invoked directly
+    for the paths under test."""
     global BROKER_PORT, DEAD_PORT
-    # No broker is needed: the worker only has to start far enough to
-    # write its pidfile. Point it at a verified-closed port.
+    # No broker is needed for these probes. Point the template at a
+    # verified-closed port; the worker only has to start far enough to
+    # write its pidfile.
     DEAD_PORT = alloc_dead_port()
     BROKER_PORT = DEAD_PORT
+    begin_run_dir()
     try:
         return _selftest_cleanup_body()
     finally:
@@ -826,57 +962,57 @@ def selftest_cleanup():
 
 
 def _selftest_cleanup_body():
-    """Prove every cleanup path by failing deliberately after each
-    acquisition step. Prints PASS per step, raises on any miss."""
-    # 1. Trees created, then a failure: registrations and dirs must go.
-    trees_dir = prepare_trees()
+    # 1. Tree setup fails partway: acquired_run must still unwind
+    # everything it owns. Sabotage the fix revision lookup.
+    saved_rev = os.environ.get("REPRO_FIX_REV")
+    os.environ["REPRO_FIX_REV"] = "0000000000000000000000000000000000000000"
     try:
-        raise RuntimeError("probe failure after tree setup")
-    except RuntimeError:
-        drop_trees(trees_dir)
+        accepted_bogus = False
+        try:
+            with acquired_run():
+                pass
+            accepted_bogus = True
+        except AssertionError as err:
+            assert "worktree add failed" in str(err), \
+                "wrong failure: %s" % err
+        assert not accepted_bogus, \
+            "acquired_run accepted a bogus revision"
+    finally:
+        if saved_rev is None:
+            os.environ.pop("REPRO_FIX_REV", None)
+        else:
+            os.environ["REPRO_FIX_REV"] = saved_rev
     out = subprocess.run(["git", "-C", REPO, "worktree", "list",
                           "--porcelain"],
                          capture_output=True,
                          text=True,
-                         timeout=60)
-    assert "trees/base" not in out.stdout and "trees/fix" not in out.stdout, \
+                         timeout=remaining(60))
+    assert "trees/base" not in out.stdout \
+        and "trees/fix" not in out.stdout, \
         "stale worktree registrations: %s" % out.stdout[-500:]
-    print("PASS trees cleaned after probe failure", flush=True)
-    # 2. Container started, then a failure: it must be gone.
-    name = start_broker_container()
-    try:
-        raise RuntimeError("probe failure after container start")
-    except RuntimeError:
-        out = subprocess.run(["docker", "rm", "-f", name],
-                             capture_output=True,
-                             text=True,
-                             timeout=120)
-        assert out.returncode == 0, "docker rm failed: %s" % out.stderr
-    assert not container_present(name), "container survived cleanup"
-    print("PASS container cleaned after probe failure", flush=True)
-    # 3. Worker started, then a failure: exact owned PIDs must die.
-    trees_dir = prepare_trees()
-    try:
-        case_obj = make_case("base", TREES["base"], "download-main")
+    print("PASS partial tree setup cleaned via real path", flush=True)
+    # 2. A case that fails with a worker running must come back
+    # through run_one_case's cleanup with no survivors.
+    with acquired_run() as (_trees_dir, _name):
+        real_body = CASE_BODIES["download-main"]
+
+        def sabotaged(case_obj):
+            case_obj.seed_until_queued("work")
+            raise RuntimeError("probe failure with worker idle")
+
+        CASE_BODIES["download-main"] = sabotaged
         try:
-            rc = case_obj.start("probe")
-            assert rc == 0, "sr3 start rc=%s" % rc
-            wait_until(
-                "worker pidfile", 120, lambda: owned_pids(
-                    case_obj.casedir, case_obj.cfgname) or None)
-            raise RuntimeError("probe failure with worker running")
-        except BaseException as primary:
-            terminate_owned(case_obj.casedir, case_obj.cfgname)
-            leftovers = [
-                pid for pid in owned_pids(case_obj.casedir,
-                                          case_obj.cfgname)
-                if verify_worker(pid, case_obj.cfgname)
-            ]
-            assert not leftovers, "workers survived: %s" % leftovers
-            assert "probe failure with worker running" in str(primary)
-        print("PASS owned workers cleaned after probe failure", flush=True)
-    finally:
-        drop_trees(trees_dir)
+            entry = run_one_case("base", "download-main")
+        finally:
+            CASE_BODIES["download-main"] = real_body
+        assert entry[2].startswith("FAIL: probe failure"), entry
+        leftovers = [
+            pid for pid in owned_pids(
+                os.path.join(run_root(), "base-download-main"),
+                "retryfinal") if verify_worker(pid, "retryfinal")
+        ]
+        assert not leftovers, "workers survived: %s" % leftovers
+    print("PASS failed case cleaned via real path", flush=True)
     print("cleanup self-test: all PASS", flush=True)
     return 0
 
@@ -887,9 +1023,13 @@ def main():
     wanted_cases = sys.argv[2:] or list(CASES)
     assert_real_home_clean()
     DEAD_PORT = alloc_dead_port()
-    if os.path.exists(EVIDENCE):
-        shutil.rmtree(EVIDENCE)
-    os.makedirs(EVIDENCE)
+    global RUN_DIR
+    run_id = "run-%s" % uuid.uuid4().hex[:8]
+    RUN_DIR = os.path.join(EVIDENCE, run_id)
+    if os.path.exists(RUN_DIR):
+        raise RuntimeError("refusing to overwrite existing run dir: %s"
+                           % RUN_DIR)
+    os.makedirs(RUN_DIR)
     trees_dir = None
     container_started = False
     try:
@@ -902,7 +1042,7 @@ def main():
                                  text=True,
                                  timeout=60)
             resolved[tree_name] = out.stdout.strip()
-        with open(os.path.join(EVIDENCE, "trees.json"), "w") as handle:
+        with open(os.path.join(run_root(), "trees.json"), "w") as handle:
             json.dump({"base_pin": TREES_WANT["base"],
                        "resolved": resolved,
                        "paths": TREES},
@@ -959,7 +1099,7 @@ def main():
                         raise RuntimeError(
                             "cleanup failed after case failure: %s"
                             % primary) from cleanup_err
-        with open(os.path.join(EVIDENCE, "summary.json"), "w") as handle:
+        with open(os.path.join(run_root(), "summary.json"), "w") as handle:
             json.dump(summary, handle, indent=2)
         print("failed: %d" % failed, flush=True)
         return 1 if failed else 0

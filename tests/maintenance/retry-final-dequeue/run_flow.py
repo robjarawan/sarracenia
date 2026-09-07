@@ -670,6 +670,12 @@ def run_c3(case):
     assert rc == 0
     assert queue_lines(case.casedir, case.cfgname, "work") is None, \
         "retired queue file must be gone"
+    # Identity for the process phase, while its events are still on
+    # disk: the restart below must produce no events of its own.
+    for event in flow_events(case.casedir):
+        path = event.get("sarracenia_file", "")
+        assert path.startswith(case.tree + os.sep), \
+            "process worker ran %s, want tree %s" % (path, case.tree)
     # Restart: nothing may arrive and no queue file may exist.
     if os.path.exists(os.path.join(case.casedir, "flow-events.jsonl")):
         os.remove(os.path.join(case.casedir, "flow-events.jsonl"))
@@ -887,7 +893,8 @@ def acquired_run():
                     env={
                         **env, "REPRO_EXCHANGE": EXCHANGE
                     },
-                    capture_output=True).returncode == 0 or None)
+                    capture_output=True,
+                    timeout=remaining(60)).returncode == 0 or None)
             yield trees_dir, name
         finally:
             remove_broker_container(name)
@@ -1069,7 +1076,8 @@ def main():
                 env={
                     **env, "REPRO_EXCHANGE": EXCHANGE
                 },
-                capture_output=True).returncode == 0 or None)
+                capture_output=True,
+                timeout=remaining(60)).returncode == 0 or None)
         summary = []
         failed = 0
         for tree_name in wanted_trees:

@@ -704,9 +704,7 @@ class File(FlowCB):
         elif len(self.queued_messages) > 0:
             messages = self.queued_messages
             self.queued_messages = []
-
-            if self.o.sleep < 0:
-                return (True, messages)
+            return (True, messages)
         else:
             messages = []
 

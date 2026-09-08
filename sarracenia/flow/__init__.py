@@ -258,6 +258,8 @@ class Flow:
                 return False
 
         logger.debug('flowCallback plugins to load: %s', plugins_to_load)
+        run_last = {entry_point: [] for entry_point in sarracenia.flowcb.entry_points}
+
         for c in plugins_to_load:
             try:
                 plugin = sarracenia.flowcb.load_library(c, self.o)
@@ -273,13 +275,19 @@ class Flow:
                     if callable(fn):
                         #logger.debug( f'registering {c}/{entry_point}' )
                         if entry_point in self.plugins:
-                            self.plugins[entry_point].append(fn)
+                            if entry_point in getattr(plugin, 'run_last', set()):
+                                run_last[entry_point].append(fn)
+                            else:
+                                self.plugins[entry_point].append(fn)
                         else:
                             self.plugins[entry_point] = [fn]
 
             if not (hasattr(plugin, 'registered_as')
                     and callable(getattr(plugin, 'registered_as'))):
                 continue
+
+        for entry_point in sarracenia.flowcb.entry_points:
+            self.plugins[entry_point].extend(run_last[entry_point])
 
         logger.debug('complete')
         self.o.check_undeclared_options()
@@ -1276,6 +1284,9 @@ class Flow:
 
         if self.o.download and 'retrievePath' in m:
             # retrieve paths do not propagate after download.
+            if 'old_retrievePath' not in m:
+                m['old_retrievePath'] = m['retrievePath']
+                m['_deleteOnPost'].add('old_retrievePath')
             del m['retrievePath'] 
 
     def work(self) -> None:

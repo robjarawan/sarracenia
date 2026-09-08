@@ -841,16 +841,21 @@ def docker_broker_port(name):
     return int(out.stdout.strip().rsplit(":", 1)[1])
 
 
-def start_broker_container():
-    """Start the bounded disposable broker. Returns its unique name.
+def new_broker_name():
+    """Reserve a unique run-owned broker name BEFORE launching, so a
+    create-then-timeout failure still has an exact identity to clean."""
+    return "sr-retryfinal-%s" % uuid.uuid4().hex[:8]
+
+
+def start_broker_container(name, image="rabbitmq:4-alpine"):
+    """Start the bounded disposable broker under an already-owned name.
     Only this exact name is ever removed. The launch itself is bounded
     so a stuck daemon cannot hang the run before the deadline exists."""
-    name = "sr-retryfinal-%s" % uuid.uuid4().hex[:8]
     subprocess.run([
         "docker", "run", "-d", "--rm", "--name", name,
         "--memory", "512m", "--cpus", "1", "--pids-limit", "128",
         "--label", "repro=retryfinal-149", "-p", "127.0.0.1::5672",
-        "rabbitmq:4-alpine"
+        image
     ],
                    check=True,
                    capture_output=True,
@@ -858,14 +863,39 @@ def start_broker_container():
     return name
 
 
-def remove_broker_container(name):
+def remove_broker_container(name, missing_ok=False):
     out = subprocess.run(["docker", "rm", "-f", name],
                          capture_output=True,
                          text=True,
                          timeout=remaining(120))
     if out.returncode != 0:
+        if missing_ok and "No such container" in out.stderr:
+            return
         raise RuntimeError("docker rm failed for %s: %s" %
                            (name, out.stderr.strip()[-300:]))
+
+
+@contextlib.contextmanager
+def owned_broker_container(image="rabbitmq:4-alpine"):
+    """Own one disposable broker from name reservation through removal.
+    A create-then-timeout launch failure still removes the exact owned
+    name (absence is a successful no-op); any other removal failure
+    raises without hiding the original launch exception."""
+    name = new_broker_name()
+    try:
+        start_broker_container(name, image=image)
+    except BaseException as launch_err:
+        try:
+            remove_broker_container(name, missing_ok=True)
+        except Exception as rm_err:
+            raise RuntimeError(
+                "broker launch failed and cleanup failed: %s"
+                % launch_err) from rm_err
+        raise
+    try:
+        yield name
+    finally:
+        remove_broker_container(name)
 
 
 @contextlib.contextmanager
@@ -879,8 +909,7 @@ def acquired_run():
     trees_dir = prepare_trees()
     try:
         print("trees: %s" % TREES, flush=True)
-        name = start_broker_container()
-        try:
+        with owned_broker_container() as name:
             BROKER_PORT = docker_broker_port(name)
             print("broker %s on 127.0.0.1:%d" % (name, BROKER_PORT),
                   flush=True)
@@ -896,8 +925,6 @@ def acquired_run():
                     capture_output=True,
                     timeout=remaining(60)).returncode == 0 or None)
             yield trees_dir, name
-        finally:
-            remove_broker_container(name)
     finally:
         drop_trees(trees_dir)
 
@@ -931,6 +958,18 @@ def container_present(name):
         text=True,
         timeout=60)
     return name in out.stdout.split()
+
+
+def owned_container_names():
+    """Names of all harness-owned broker containers. Used only to prove
+    a failed launch left nothing behind."""
+    out = subprocess.run(
+        ["docker", "ps", "-a", "--filter", "name=sr-retryfinal-",
+         "--format", "{{.Names}}"],
+        capture_output=True,
+        text=True,
+        timeout=60)
+    return sorted(out.stdout.split())
 
 
 def run_one_case(tree_name, case_name):
@@ -973,6 +1012,7 @@ def selftest_cleanup():
 
 
 def _selftest_cleanup_body():
+    global RUN_DEADLINE_AT
     # 1. Tree setup fails partway: acquired_run must still unwind
     # everything it owns. Sabotage the fix revision lookup.
     saved_rev = os.environ.get("REPRO_FIX_REV")
@@ -1030,6 +1070,51 @@ def _selftest_cleanup_body():
         and not container_present(leaked_container), \
         "container survived cleanup: %s" % leaked_container
     print("PASS failed case cleaned via real path", flush=True)
+    # 3. Broker launch that fails before creation propagates through
+    # owned_broker_container and leaves nothing behind.
+    global RUN_DEADLINE_AT
+    before = owned_container_names()
+    try:
+        with owned_broker_container(
+                image="nonexistent-image-retryfinal-149"):
+            pass
+        raise AssertionError("bogus image launch did not raise")
+    except subprocess.CalledProcessError:
+        pass
+    assert owned_container_names() == before, \
+        "failed launch left containers behind"
+    print("PASS failed launch cleaned via real path", flush=True)
+    # 4. Broker launch that times out after creation still removes the
+    # exact owned container and propagates TimeoutExpired unchanged.
+    # The fake docker records the created name, then hangs past the
+    # harness timeout exactly like a stuck daemon would.
+    bindir = tempfile.mkdtemp(prefix="fake-docker-bin-")
+    markers = tempfile.mkdtemp(prefix="fake-docker-markers-")
+    try:
+        shutil.copy(os.path.join(HERE, "fake_docker.sh"),
+                    os.path.join(bindir, "docker"))
+        os.chmod(os.path.join(bindir, "docker"), 0o755)
+        saved_path = os.environ["PATH"]
+        os.environ["PATH"] = bindir + os.pathsep + saved_path
+        os.environ["FAKE_DOCKER_MARKERS"] = markers
+        saved_deadline = RUN_DEADLINE_AT
+        RUN_DEADLINE_AT = time.time() + 90
+        try:
+            with owned_broker_container():
+                pass
+            raise AssertionError("hung launch did not time out")
+        except subprocess.TimeoutExpired:
+            pass
+        finally:
+            RUN_DEADLINE_AT = saved_deadline
+            os.environ["PATH"] = saved_path
+            os.environ.pop("FAKE_DOCKER_MARKERS", None)
+        assert os.listdir(markers) == [], \
+            "timed-out launch left markers: %s" % os.listdir(markers)
+    finally:
+        shutil.rmtree(bindir, ignore_errors=True)
+        shutil.rmtree(markers, ignore_errors=True)
+    print("PASS timed-out launch cleaned via real path", flush=True)
     print("cleanup self-test: all PASS", flush=True)
     return 0
 
@@ -1043,7 +1128,6 @@ def main():
     RUN_DEADLINE_AT = time.time() + RUN_DEADLINE
     DEAD_PORT = alloc_dead_port()
     trees_dir = None
-    container_started = False
     try:
         trees_dir = prepare_trees()
         print("trees: %s" % TREES, flush=True)
@@ -1060,62 +1144,61 @@ def main():
                        "paths": TREES},
                       handle,
                       indent=2)
-        name = start_broker_container()
-        container_started = True
-        BROKER_PORT = docker_broker_port(name)
-        print("broker %s on 127.0.0.1:%d, dead post port %d" %
-              (name, BROKER_PORT, DEAD_PORT),
-              flush=True)
-        run_deadline = time.time() + RUN_DEADLINE
-        env = dict(os.environ)
-        env.update(broker_env())
-        wait_until(
-            "broker healthy", 180, lambda: subprocess.run(
-                [sys.executable,
-                 os.path.join(HERE, "inject.py"), "setup"],
-                env={
-                    **env, "REPRO_EXCHANGE": EXCHANGE
-                },
-                capture_output=True,
-                timeout=remaining(60)).returncode == 0 or None)
-        summary = []
-        failed = 0
-        for tree_name in wanted_trees:
-            for case_name in wanted_cases:
-                if time.time() > run_deadline:
-                    raise RuntimeError("overall run deadline exceeded")
-                # make_case starts no workers, so cleanup always knows
-                # exactly what it owns even if the body raises first.
-                case_obj = make_case(tree_name, TREES[tree_name],
-                                     case_name)
-                try:
-                    CASE_BODIES[case_name](case_obj)
-                    with open(
-                            os.path.join(case_obj.casedir,
-                                         "evidence.json")) as handle:
-                        assert_tree_identity(json.load(handle),
-                                             TREES[tree_name])
-                    print("PASS %s-%s" % (tree_name, case_name),
-                          flush=True)
-                    summary.append([tree_name, case_name, "PASS"])
-                except BaseException as primary:
-                    print("FAIL %s-%s: %s" % (tree_name, case_name,
-                                             primary),
-                          flush=True)
-                    summary.append(
-                        [tree_name, case_name, "FAIL: %s" % primary])
-                    failed += 1
+        with owned_broker_container() as name:
+            BROKER_PORT = docker_broker_port(name)
+            print("broker %s on 127.0.0.1:%d, dead post port %d" %
+                  (name, BROKER_PORT, DEAD_PORT),
+                  flush=True)
+            run_deadline = time.time() + RUN_DEADLINE
+            env = dict(os.environ)
+            env.update(broker_env())
+            wait_until(
+                "broker healthy", 180, lambda: subprocess.run(
+                    [sys.executable,
+                     os.path.join(HERE, "inject.py"), "setup"],
+                    env={
+                        **env, "REPRO_EXCHANGE": EXCHANGE
+                    },
+                    capture_output=True,
+                    timeout=remaining(60)).returncode == 0 or None)
+            summary = []
+            failed = 0
+            for tree_name in wanted_trees:
+                for case_name in wanted_cases:
+                    if time.time() > run_deadline:
+                        raise RuntimeError("overall run deadline exceeded")
+                    # make_case starts no workers, so cleanup always knows
+                    # exactly what it owns even if the body raises first.
+                    case_obj = make_case(tree_name, TREES[tree_name],
+                                         case_name)
                     try:
-                        terminate_owned(case_obj.casedir,
-                                        case_obj.cfgname)
-                    except Exception as cleanup_err:
-                        raise RuntimeError(
-                            "cleanup failed after case failure: %s"
-                            % primary) from cleanup_err
-        with open(os.path.join(run_root(), "summary.json"), "w") as handle:
-            json.dump(summary, handle, indent=2)
-        print("failed: %d" % failed, flush=True)
-        return 1 if failed else 0
+                        CASE_BODIES[case_name](case_obj)
+                        with open(
+                                os.path.join(case_obj.casedir,
+                                             "evidence.json")) as handle:
+                            assert_tree_identity(json.load(handle),
+                                                 TREES[tree_name])
+                        print("PASS %s-%s" % (tree_name, case_name),
+                              flush=True)
+                        summary.append([tree_name, case_name, "PASS"])
+                    except BaseException as primary:
+                        print("FAIL %s-%s: %s" % (tree_name, case_name,
+                                                 primary),
+                              flush=True)
+                        summary.append(
+                            [tree_name, case_name, "FAIL: %s" % primary])
+                        failed += 1
+                        try:
+                            terminate_owned(case_obj.casedir,
+                                            case_obj.cfgname)
+                        except Exception as cleanup_err:
+                            raise RuntimeError(
+                                "cleanup failed after case failure: %s"
+                                % primary) from cleanup_err
+            with open(os.path.join(run_root(), "summary.json"), "w") as handle:
+                json.dump(summary, handle, indent=2)
+            print("failed: %d" % failed, flush=True)
+            return 1 if failed else 0
     finally:
         cleanup_errors = []
         try:
@@ -1123,14 +1206,6 @@ def main():
         except Exception as err:
             cleanup_errors.append("trees: %s" % err)
         release_held_ports()
-        if container_started:
-            out = subprocess.run(["docker", "rm", "-f", name],
-                                 capture_output=True,
-                                 text=True,
-                                 timeout=120)
-            if out.returncode != 0:
-                cleanup_errors.append(
-                    "docker rm: %s" % out.stderr.strip()[-300:])
         if cleanup_errors:
             raise RuntimeError("cleanup failed: %s" %
                                " | ".join(cleanup_errors))

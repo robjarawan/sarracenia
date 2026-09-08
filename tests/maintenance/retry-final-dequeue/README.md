@@ -75,6 +75,17 @@ done
 [ -n "${Q:-}" ] || { echo "TIMEOUT: retry file never held 2 records"; exit 1; }
 wc -l "$Q"
 sr3 stop subscribe/retryfinal
+# Verify by pidfile, never by command-line pattern: the invoking
+# shell's own command line would false-positive a pgrep gate, and a
+# silent no-op stop here makes the armed start below a silent no-op.
+PIDDIR="$XDG_CACHE_HOME/sr3/subscribe/retryfinal"
+for i in $(seq 1 30); do sleep 2
+  PID=$(cat "$PIDDIR"/subscribe_retryfinal_*.pid 2>/dev/null || true)
+  [ -z "$PID" ] || kill -0 "$PID" 2>/dev/null || break
+done
+PID=$(cat "$PIDDIR"/subscribe_retryfinal_*.pid 2>/dev/null || true)
+[ -n "$PID" ] && kill -0 "$PID" 2>/dev/null && { echo "STOP FAILED: worker $PID still running"; exit 1; }
+echo "worker stopped"
 ```
 
 Armed restart: the config-loaded callback kills the worker right after

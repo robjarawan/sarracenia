@@ -276,8 +276,14 @@ class CredentialDB:
         # add anonymous default, if necessary.
         if ( 'amqp' in url.scheme ) and \
            ( (url.username == None) or (url.username == '') ):
-            urlstr = urllib.parse.urlunparse( ( url.scheme, \
-                f'anonymous:anonymous@{url.netloc}', url.path, None, None, url.port ) )
+            urlstr = urllib.parse.urlunparse((
+                url.scheme,
+                f'anonymous:anonymous@{url.netloc}',
+                url.path,
+                None,
+                None,
+                None,
+            ))
             url = _urlparse(urlstr)
             if self.isValid(url):
                 self.add(urlstr)
@@ -574,4 +580,3 @@ class CredentialDB:
             cred_details.url = _urlparse(urlstr)
             return False, cred_details
         return True, cred_details
-

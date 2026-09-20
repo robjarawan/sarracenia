@@ -99,3 +99,27 @@ class Test_CredentialDbAdd:
         keys = list(db.credentials.keys())
         assert any('pass%23word' not in k and 'broker.example.com' in k for k in keys), \
             f"password not stripped from key, keys: {keys}"
+
+
+class Test_CredentialDbGet:
+
+    @pytest.mark.parametrize(
+        ('urlstr', 'expected_port'),
+        [
+            ('amqp://broker.example.com/vhost', None),
+            ('amqp://broker.example.com:5672/vhost', 5672),
+        ],
+    )
+    def test_anonymous_amqp_preserves_explicit_port(self, urlstr, expected_port):
+        db = CredentialDB()
+
+        cached, details = db.get(urlstr)
+
+        assert cached is False
+        assert details.url.scheme == 'amqp'
+        assert details.url.hostname == 'broker.example.com'
+        assert details.url.port == expected_port
+        assert details.url.path == '/vhost'
+        assert details.url.username == 'anonymous'
+        assert details.url.password == 'anonymous'
+        assert details.url.fragment == ''

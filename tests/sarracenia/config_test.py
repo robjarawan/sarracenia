@@ -563,6 +563,35 @@ def test_filename_option():
     assert(options.masks[9][2] == "DESTFNSCRIPT=hi")
     assert(options.masks[10][2] is None)
 
+
+@pytest.mark.parametrize(
+    ('platform', 'document_root', 'absolute_path', 'expected_path', 'expect_warning'),
+    [
+        ('win32', r'C:\srv\data', r'C:\srv\data', 'C:/srv/data', True),
+        ('win32', 'C:/srv/data', r'C:\srv\data', 'C:/srv/data', False),
+        ('linux', '/srv/data', '/srv/data', '/srv/data', False),
+    ],
+)
+def test_finalize_document_root(monkeypatch, caplog, platform, document_root,
+                                absolute_path, expected_path, expect_warning):
+    options = sarracenia.config.no_file_config()
+    options.component = 'flow'
+    options.config = 'document-root'
+    options.action = 'show'
+    options.documentRoot = document_root
+    options.post_baseDir = None
+
+    monkeypatch.setattr(sarracenia.config.sys, 'platform', platform)
+    monkeypatch.setattr(sarracenia.config.os.path, 'abspath', lambda path: absolute_path)
+
+    options.finalize()
+
+    assert options.documentRoot == expected_path
+    assert options.post_baseDir == expected_path
+    warned = any('use of backslash' in record.message for record in caplog.records)
+    assert warned is expect_warning
+
+
 def test_nodupe_ttl_parsing():
     options = copy.deepcopy(sarracenia.config.default_config())
     options.component = 'subscribe'

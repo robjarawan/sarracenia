@@ -279,9 +279,9 @@ def stat( path ) -> sarracenia.filemetadata.FmdStat:
     sa.st_gid  = native_stat.st_gid
     sa.st_size  = native_stat.st_size
 
-    sa.st_mtime = os.path.getmtime(path)
-    sa.st_atime = os.path.getctime(path)
-    sa.st_ctime = native_stat.st_atime
+    sa.st_mtime = native_stat.st_mtime
+    sa.st_atime = native_stat.st_atime
+    sa.st_ctime = native_stat.st_ctime
     return sa
 
 def nowflt():

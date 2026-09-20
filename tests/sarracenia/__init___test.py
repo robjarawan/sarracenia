@@ -126,6 +126,34 @@ def test_nowflt():
     import time
     assert time.time() - sarracenia.nowflt() < 0.001
 
+
+def test_stat_preserves_timestamp_fields(mocker):
+    native_stat = mocker.Mock()
+    native_stat.st_mode = 0o100644
+    native_stat.st_ino = 11
+    native_stat.st_dev = 12
+    native_stat.st_uid = 13
+    native_stat.st_gid = 14
+    native_stat.st_size = 15
+    native_stat.st_atime = 101.125
+    native_stat.st_mtime = 202.25
+    native_stat.st_ctime = 303.5
+
+    fake_os = mocker.Mock()
+    fake_os.stat.return_value = native_stat
+    fake_os.path.getmtime.return_value = native_stat.st_mtime
+    fake_os.path.getctime.return_value = native_stat.st_ctime
+    mocker.patch.object(sarracenia, 'os', fake_os)
+
+    result = sarracenia.stat('path-is-never-accessed')
+
+    assert result.st_mtime == 202.25
+    assert result.st_atime == 101.125
+    assert result.st_ctime == 303.5
+    fake_os.stat.assert_called_once_with('path-is-never-accessed')
+    fake_os.path.getmtime.assert_not_called()
+    fake_os.path.getctime.assert_not_called()
+
 # def test_naturalSize():
 #     if sarracenia.features['humanize']['present'] == True:
 #         assert sarracenia.naturalSize(1024) == '1.0 KiB'
@@ -566,8 +594,6 @@ class Test_Message():
 
         message['longfield'] = "{hacskmbeponlfkfcmxxasoxjgrodcmovxbkzgnfxqimkmxshaztwsptqbulazgszjyiqoqasyukgjejtbrbeufvfdrxlurglhlszdehigvctczjtleadkpeycunthwzwdbxybhbewgcclljkebtwueldbhximikfbtgapiklmqzceyqlilebchekrxmvhfflaclqjddfrhicdttaabkfkhbwylnzyneattcjsgpordersenmbzyjeaybtyyahsde}"
         assert message.dumps() == "{ { 'id': 'id111', 'type':'Feature', 'geometry':geometry111 'properties':{  '_deleteOnPost':'{'_format'}', '_format':'Wis', 'baseUrl':'https://example.com', 'geometry':'geometry111', 'id':'id111', 'longfield':'{hacskmbeponlfkfcmxxasoxjgrodcmovxbkzgnfxqimkmxshaztwsptqbulazgszjyiqoqasyukgjejtbrbeufvfdrxlurglhlszdehigvctczjtleadkpeycunthwzwdbxybhbewgcclljkebtwueldbhximikfbtgapiklmqzceyqlilebchekrxmvhfflaclqjddfrhicdttaabkfkhbwylnzyneattcjsgpordersenmbzyjeaybty...}', 'relPath':'path/to/file.txt', 'testdict':'{  'key1':'val1', 'key2':'val2' }', } }"
-
-
 
 
 

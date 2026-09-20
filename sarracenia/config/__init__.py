@@ -2938,11 +2938,11 @@ def one_config(component, config, action, isPost=False, hostDir=None):
 def cfglogs(cfg_preparse, component, config, logLevel, child_inst):
 
 
-    if cfg_preparse.logRotateInterval < 24*24*60:
+    if cfg_preparse.logRotateInterval < 24*60*60:
         logRotateInterval=int(cfg_preparse.logRotateInterval)
         lr_when='s'
     else:
-        logRotateInterval = int(cfg_preparse.logRotateInterval/(24*24*60))
+        logRotateInterval = int(cfg_preparse.logRotateInterval/(24*60*60))
         lr_when='midnight'
 
     # init logs here. need to know instance number and configuration and component before here.

@@ -192,13 +192,13 @@ class sr_GlobalState:
 
         try:
             if self.configs[c][cfg]['options'].logStdout:
-                subprocess.Popen(cmd)
+                return subprocess.Popen(cmd)
             else:
                 with open(lfn, "a") as lf:
-                    subprocess.Popen(cmd,
-                                 stdin=subprocess.DEVNULL,
-                                 stdout=lf,
-                                 stderr=subprocess.STDOUT)
+                    return subprocess.Popen(cmd,
+                                            stdin=subprocess.DEVNULL,
+                                            stdout=lf,
+                                            stderr=subprocess.STDOUT)
             #print( f"launched: {cmd}" )
         except Exception as ex:
             print(f"failed to launch: {' '.join(cmd)} >{lfn} >2&1 (reason: {ex}) ")
@@ -2342,6 +2342,7 @@ class sr_GlobalState:
                 return
 
         pcount = 0
+        launched_processes = {}
         max_instances=0
         for f in self.filtered_configurations:
 
@@ -2365,7 +2366,9 @@ class sr_GlobalState:
                 for i in range(1, numi + 1):
                     if pcount % 10 == 0: print('.', end='', flush=True)
                     pcount += 1
-                    self._launch_instance(component_path, c, cfg, i)
+                    process = self._launch_instance(component_path, c, cfg, i)
+                    if process is not None:
+                        launched_processes.setdefault((c, cfg), []).append((i, process))
  
         instance_gap=0.10
         time.sleep(1+max_instances*instance_gap) 
@@ -2380,15 +2383,32 @@ class sr_GlobalState:
 
             if self.configs[c][cfg]['status'] in ['disabled']: continue
 
+            startup_failed = False
             while pid_count < self.configs[c][cfg]['options'].instances:
 
                  if self.please_stop:
                      return
 
+                 for instance, process in launched_processes.get((c, cfg), []):
+                     return_code = process.poll()
+                     if return_code is not None:
+                         logger.error(
+                             '%s/%s instance %s exited with status %s before creating its PID file.',
+                             c, cfg, instance, return_code)
+                         startup_failed = True
+                         break
+
+                 if startup_failed:
+                     self._tag_progress(c, cfg, 'starting', ending=True)
+                     break
+
                  partial=True
                  logger.debug('%s/%s instances started.', pid_count, self.configs[c][cfg]['options'].instances)
                  time.sleep(5)
                  pid_count = self._pid_file_count(c,cfg)
+
+            if startup_failed:
+                continue
 
             logger.debug('%s/%s: %s/%s instances started.', c, cfg, pid_count, self.configs[c][cfg]['options'].instances)
 

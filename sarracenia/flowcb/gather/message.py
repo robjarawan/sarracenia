@@ -65,6 +65,11 @@ class Message(FlowCB):
         for c in self.consumers:
             for m in mlist:
                 if 'ack_id' in m and m['ack_id']['broker'] == c.broker:
+                    # Delivery tags belong to one connection. Another consumer
+                    # on this broker must not discard the owner's acknowledgement.
+                    connection_id = m['ack_id'].get('connection_id')
+                    if connection_id is not None and connection_id != getattr(c, 'connection_id', None):
+                        continue
                     c.ack(m)
 
     def metricsReport(self) -> dict:

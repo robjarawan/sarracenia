@@ -2,6 +2,7 @@ metpx-sr3 (3.03.01) unstable; urgency=medium
 
   * fix #1760 prevent resource library from running on Windows
   * fix #1762 AMQP prefetch is not invariant
+  * fix #145 acknowledge AMQP messages through their owning connection
 
  -- Andre LeBlanc <andre.leblanc@ssc-spc.gc.ca>  Fri, 21 Aug 2026 17:56:11 +0000
 

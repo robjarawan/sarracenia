@@ -117,6 +117,24 @@ def test_am_binary_bulletin():
     assert re.match('ISAA41_CYWA_030000___.....' , worklist.incoming[0]['rename'])
 
 
+@pytest.mark.parametrize(('configured_markers', 'body_marker'), [
+    (['BUFR'], b'BUFR'),
+    ([b'GRIB'], b'GRIB'),
+    (None, b'\x89PNG'),
+])
+def test_binary_markers_are_compared_as_bytes(configured_markers, body_marker):
+    options = Options()
+    if configured_markers is not None:
+        options.binaryInitialCharacters = configured_markers
+    am_instance = Am(options)
+
+    try:
+        assert all(isinstance(marker, bytes) for marker in am_instance.o.binaryInitialCharacters)
+        assert am_instance._is_binary_bulletin([b'ISAA41 CYWA 030000', body_marker + b'\x00\x00\xa8'])
+    finally:
+        am_instance.s.close()
+
+
 # Test 2: Check a regular CACN bulletin
 def test_cacn_regular():
 

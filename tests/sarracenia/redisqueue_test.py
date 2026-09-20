@@ -1,6 +1,6 @@
 import pytest
 from tests.conftest import *
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from sarracenia.redisqueue import RedisQueue
 from sarracenia import Message as SR3Message
@@ -114,6 +114,22 @@ def test__msgFromJSON():
 
         assert message == download_retry._msgFromJSON(jsonpickle.encode(message))
 
+
+@pytest.mark.parametrize('payload', [
+    'poison',
+    jsonpickle.encode(1),
+    jsonpickle.encode(True),
+    jsonpickle.encode(None),
+    jsonpickle.encode({}),
+    jsonpickle.encode([]),
+])
+def test__msgFromJSON__rejects_non_messages(payload, caplog):
+    with patch(target="redis.from_url", new=fakeredis.FakeStrictRedis.from_url):
+        download_retry = RedisQueue(Options(), 'test__msgFromJSON__rejects_non_messages')
+
+        assert download_retry._msgFromJSON(payload) is None
+        assert any('not decoded as sarracenia.Message' in record.message for record in caplog.records)
+
 def test__msgToJSON():
     with patch(target="redis.from_url", new=fakeredis.FakeStrictRedis.from_url, ):
         BaseOptions = Options()
@@ -133,7 +149,17 @@ def test__lpop():
         download_retry.put([message])
         assert download_retry.redis.llen(download_retry.key_name_new) == 1 
         assert message == download_retry._lpop(download_retry.key_name_new)
-    
+
+
+def test__lpop__skips_poison_before_message():
+    with patch(target="redis.from_url", new=fakeredis.FakeStrictRedis.from_url):
+        download_retry = RedisQueue(Options(), 'test__lpop__skips_poison_before_message')
+        message = make_message()
+        download_retry.redis.rpush(download_retry.key_name_new, 'poison', jsonpickle.encode(message))
+
+        assert download_retry._lpop(download_retry.key_name_new) == message
+        assert download_retry.redis.llen(download_retry.key_name_new) == 0
+
 def test_put__Single():
     with patch(target="redis.from_url", new=fakeredis.FakeStrictRedis.from_url, ):
         BaseOptions = Options()
@@ -202,6 +228,20 @@ def test_get__NotLocked_Multi():
 
         assert len(gotten) == 2
         assert gotten == [message, message]
+
+
+@pytest.mark.parametrize('retry_ttl', [0, 60])
+def test_get__skips_poison_with_ttl(retry_ttl):
+    with patch(target="redis.from_url", new=fakeredis.FakeStrictRedis.from_url):
+        options = Options()
+        options.retry_ttl = retry_ttl
+        download_retry = RedisQueue(options, f'test_get__skips_poison_with_ttl_{retry_ttl}')
+        message = make_message()
+        message['pubTime'] = '29990101T000000'
+        download_retry.redis.rpush(download_retry.key_name, 'poison', jsonpickle.encode(message))
+
+        assert download_retry.get() == [message]
+        assert download_retry.redis.llen(download_retry.key_name) == 0
 
 def test_get__Locked():
     with patch(target="redis.from_url", new=fakeredis.FakeStrictRedis.from_url, ):
@@ -287,3 +327,26 @@ def test_on_housekeeping(caplog):
 
         assert log_found_LockReleased == True
         assert log_found_Elapsed == True
+
+
+@pytest.mark.parametrize('retry_ttl', [0, 60])
+def test_on_housekeeping__skips_poison_with_ttl(retry_ttl, caplog):
+    with patch(target="redis.from_url", new=fakeredis.FakeStrictRedis.from_url):
+        options = Options()
+        options.retry_ttl = retry_ttl
+        download_retry = RedisQueue(options, f'test_on_housekeeping__skips_poison_with_ttl_{retry_ttl}')
+        download_retry.redis_lock = MagicMock()
+        download_retry.redis_lock.locked.return_value = False
+        message = make_message()
+        message['pubTime'] = '29990101T000000'
+        download_retry.redis.rpush(download_retry.key_name_new, 'poison', jsonpickle.encode(message))
+        download_retry.redis.set(
+            download_retry.key_name_lasthk,
+            download_retry.now - download_retry.o.housekeeping - 100,
+        )
+
+        download_retry.on_housekeeping()
+
+        assert download_retry.redis.llen(download_retry.key_name_new) == 0
+        assert download_retry.get() == [message]
+        assert any('not decoded as sarracenia.Message' in record.message for record in caplog.records)

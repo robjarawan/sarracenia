@@ -593,3 +593,29 @@ def test_nodupe_ttl_parsing():
     options.parse_line("subscribe", "nodupettl", "subscribe/nodupettl", 1, "nodupe_ttl 100")
     options.finalize()
     assert(options.nodupe_ttl == 100)
+
+
+def test_config_path__http_uses_module_downloader(tmp_path, monkeypatch):
+    config_dir = tmp_path / 'subscribe'
+    config_dir.mkdir()
+    expected_path = config_dir / 'demo.conf'
+    calls = []
+
+    def fake_wget_config(url, path):
+        calls.append((url, path))
+        expected_path.write_text('sleep 1\n', encoding='utf-8')
+        return True
+
+    monkeypatch.setattr(sarracenia.config, 'get_user_config_dir', lambda: str(tmp_path))
+    monkeypatch.setattr(sarracenia.config, 'wget_config', fake_wget_config)
+    monkeypatch.setattr(
+        sarracenia.config.urllib.request,
+        'urlopen',
+        lambda *_args, **_kwargs: pytest.fail('config_path bypassed the module-level wget_config helper'),
+    )
+
+    found, path = sarracenia.config.config_path('subscribe', 'http://example.invalid/demo.conf')
+
+    assert found is True
+    assert path == str(expected_path)
+    assert calls == [('http://example.invalid/demo.conf', str(expected_path))]

@@ -89,6 +89,23 @@ class Test_HashDetection:
         assert not any('password likely contains' in r.message for r in caplog.records)
 
 
+class Test_CredentialDbEncodedPasswords:
+
+    def test_get_embedded_encoded_password(self):
+        db = CredentialDB()
+
+        cached, credential = db.get(
+            'amqps://user:pass%23word@broker.example.com/'
+        )
+
+        assert cached is False
+        assert credential.url.password == 'pass#word'
+        assert credential.url.raw_password == 'pass%23word'
+        assert list(db.credentials) == [
+            'amqps://user@broker.example.com/'
+        ]
+
+
 class Test_CredentialDbAdd:
 
     def test_add_encoded_password_key_strips_correctly(self):

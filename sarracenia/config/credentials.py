@@ -295,7 +295,7 @@ class CredentialDB:
 
         self.add(urlstr)
         if url and url.password:
-            k=urlstr.replace( f':{url.password}@', '@' )
+            k=urlstr.replace( f':{url.raw_password}@', '@' )
         else:
             k=urlstr
         return False, self.credentials[k]
@@ -574,4 +574,3 @@ class CredentialDB:
             cred_details.url = _urlparse(urlstr)
             return False, cred_details
         return True, cred_details
-

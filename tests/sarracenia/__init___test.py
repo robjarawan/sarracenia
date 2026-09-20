@@ -1,14 +1,16 @@
-import pytest
-from tests.conftest import *
-#from unittest.mock import Mock
-
-import os
-from base64 import b64decode
-#import urllib.request
+import io
 import logging
+import os
+from base64 import b64decode, b64encode
+from hashlib import md5
+
+import pytest
 
 import sarracenia
 import sarracenia.config
+from tests.conftest import *
+#from unittest.mock import Mock
+#import urllib.request
 
 logger = logging.getLogger('sarracenia')
 logger.setLevel('DEBUG')
@@ -276,6 +278,56 @@ class Test_Message():
         # Identity should still be computed normally
         assert 'identity' in msg
         assert msg['identity']['method'] == options.identity_method
+
+    def test_computeIdentity_respects_nonzero_offset_and_size(self, tmp_path):
+        data = b'AAAABBBBCCCC'
+        path = tmp_path / 'block_identity.bin'
+        path.write_bytes(data)
+
+        options = sarracenia.config.default_config()
+        options.identity_method = 'md5'
+        options.bufSize = 8
+
+        msg = sarracenia.Message()
+        msg['blocks'] = {}
+        msg['size'] = 4
+
+        msg.computeIdentity(str(path), options, offset=4)
+
+        expected = b64encode(md5(data[4:8]).digest()).decode('utf-8')
+        assert msg['identity'] == {'method': 'md5', 'value': expected}
+
+    def test_computeIdentity_continues_after_short_reads(self, tmp_path, monkeypatch):
+        data = b'0123456789'
+        path = tmp_path / 'short_reads.bin'
+        path.write_bytes(data)
+
+        class ShortReadStream(io.BytesIO):
+
+            def __init__(self, content):
+                super().__init__(content)
+                self.read_sizes = []
+
+            def read(self, size=-1):
+                self.read_sizes.append(size)
+                return super().read(min(size, 2))
+
+        stream = ShortReadStream(data)
+        monkeypatch.setattr(sarracenia, 'open', lambda *_args, **_kwargs: stream, raising=False)
+
+        options = sarracenia.config.default_config()
+        options.identity_method = 'md5'
+        options.bufSize = 4
+
+        msg = sarracenia.Message()
+        msg['blocks'] = {}
+        msg['size'] = 5
+
+        msg.computeIdentity(str(path), options, offset=1)
+
+        expected = b64encode(md5(data[1:6]).digest()).decode('utf-8')
+        assert msg['identity'] == {'method': 'md5', 'value': expected}
+        assert stream.read_sizes == [4, 3, 1]
 
 
     @pytest.mark.depends(on=['test_fromFileInfo'])
@@ -566,8 +618,6 @@ class Test_Message():
 
         message['longfield'] = "{hacskmbeponlfkfcmxxasoxjgrodcmovxbkzgnfxqimkmxshaztwsptqbulazgszjyiqoqasyukgjejtbrbeufvfdrxlurglhlszdehigvctczjtleadkpeycunthwzwdbxybhbewgcclljkebtwueldbhximikfbtgapiklmqzceyqlilebchekrxmvhfflaclqjddfrhicdttaabkfkhbwylnzyneattcjsgpordersenmbzyjeaybtyyahsde}"
         assert message.dumps() == "{ { 'id': 'id111', 'type':'Feature', 'geometry':geometry111 'properties':{  '_deleteOnPost':'{'_format'}', '_format':'Wis', 'baseUrl':'https://example.com', 'geometry':'geometry111', 'id':'id111', 'longfield':'{hacskmbeponlfkfcmxxasoxjgrodcmovxbkzgnfxqimkmxshaztwsptqbulazgszjyiqoqasyukgjejtbrbeufvfdrxlurglhlszdehigvctczjtleadkpeycunthwzwdbxybhbewgcclljkebtwueldbhximikfbtgapiklmqzceyqlilebchekrxmvhfflaclqjddfrhicdttaabkfkhbwylnzyneattcjsgpordersenmbzyjeaybty...}', 'relPath':'path/to/file.txt', 'testdict':'{  'key1':'val1', 'key2':'val2' }', } }"
-
-
 
 
 

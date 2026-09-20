@@ -184,6 +184,8 @@ class AMQP(Moth):
         # then re-apply props so they take priority.
         self.o.update(default_options)
         self.o.update(props)
+        if not is_subscriber and 'post_messageAgeMax' in self.o:
+            self.o['messageAgeMax'] = self.o['post_messageAgeMax']
 
         self.first_setup = True
         self._stop_requested = False
@@ -747,11 +749,10 @@ class AMQP(Moth):
             else:
                 exchange = self.o['exchange']
 
+        expiration = 0
         if 'messageAgeMax' in self.o and self.o['messageAgeMax']:
-            ttl = "%d" * int(
+            expiration = int(
                 sarracenia.durationToSeconds(self.o['messageAgeMax']) * 1000)
-        else:
-            ttl = "0"
         
         if 'persistent' in self.o:
             deliv_mode = 2 if self.o['persistent'] else 1
@@ -788,11 +789,15 @@ class AMQP(Moth):
                     logger.error(f"message header {k} too long, dropping")
                     continue
 
-        AMQP_Message = amqp.Message(raw_body,
-                                        content_type=content_type,
-                                        application_headers=headers,
-                                        expire=ttl,
-                                        delivery_mode=deliv_mode)
+        message_properties = {
+            'content_type': content_type,
+            'application_headers': headers,
+            'delivery_mode': deliv_mode,
+        }
+        if expiration > 0:
+            message_properties['expiration'] = str(expiration)
+
+        AMQP_Message = amqp.Message(raw_body, **message_properties)
         self.metrics['txByteCount'] += len(raw_body) 
         if headers:
             self.metrics['txByteCount'] += len(''.join(str(headers)))

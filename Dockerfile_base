@@ -1,4 +1,8 @@
-FROM ubuntu:latest
+# Pinned to 24.04 because this image relies on python3-paho-mqtt >= 1.5.1
+# being available from apt. 24.04 ships 1.6.1; older Ubuntu LTS releases
+# did not, which is why the previous Dockerfile installed paho-mqtt via pip.
+# When a newer Ubuntu LTS is ready, audit the apt package versions and bump.
+FROM ubuntu:24.04
 
 LABEL maintainer="ssc.sscdatarouting-spcroutagededonnees.spc@ssc-spc.gc.ca"
 

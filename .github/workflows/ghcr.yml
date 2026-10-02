@@ -66,6 +66,9 @@ jobs:
             type=raw,value=development,enable=${{ github.ref == 'refs/heads/development' }}
             type=raw,value=stable,enable=${{ startsWith(github.ref, 'refs/tags/') }}
             type=ref,event=tag
+            # also tag with the version stripped of the v prefix (v3.03.00 -> 3.03.00)
+            # so downstream consumers can pin to the bare version number.
+            type=match,pattern=v(.*),group=1,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
 
       - name: Build and push
         uses: docker/build-push-action@v7

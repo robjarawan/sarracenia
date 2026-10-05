@@ -112,6 +112,21 @@ class DiskQueue():
         # msg_count is the number of messages available for retry in this interval
         self.msg_count = 0
 
+        # inflight_count is the number of messages returned to the caller whose
+        # processing outcome has not been recorded yet.
+        self.inflight_count = 0
+
+        # A completed queue can remain on disk when unlink fails. Keep that
+        # cleanup state separate from messages whose outcome is still unknown.
+        self.cleanup_pending = False
+
+        # Stop live retries if an append or reader rollback cannot restore a
+        # known record boundary. A later append retries a failed append
+        # rollback before writing the retained batch.
+        self.append_rollback_failed = False
+        self.append_rollback_boundary = None
+        self.reader_rollback_failed = False
+
         # msg_count_new is the number of messages added for retry in this interval
         #   ... new messages will only be available in the next interval.
         self.msg_count_new = 0
@@ -136,14 +151,75 @@ class DiskQueue():
           add messages to the end of the queue.
         """
 
+        if self.append_rollback_failed:
+            if not self._restore_append_boundary():
+                raise OSError("retry queue append is blocked after rollback failure")
+
         if self.new_fp is None:
             self.new_fp = open(self.new_path, 'a')
 
-        for message in message_list:
-            logger.debug('DEBUG add to new file %s %s', os.path.basename(self.new_path), message)
-            self.new_fp.write(self.msgToJSON(message))
-            self.msg_count_new += 1
+        # Flush earlier successful puts so the file size is a valid rollback
+        # boundary for this call.
         self.new_fp.flush()
+        append_start = os.fstat(self.new_fp.fileno()).st_size
+        count_start = self.msg_count_new
+
+        try:
+            for message in message_list:
+                logger.debug('DEBUG add to new file %s %s',
+                             os.path.basename(self.new_path), message)
+                record = self.msgToJSON(message)
+                written = self.new_fp.write(record)
+                if written != len(record):
+                    raise OSError("short write to retry queue")
+                self.msg_count_new += 1
+            self.new_fp.flush()
+        except BaseException:
+            self._rollback_append(append_start, count_start)
+            raise
+
+    def _rollback_append(self, append_start, count_start) -> None:
+        """Restore `.new` to the last complete append boundary."""
+        writer = self.new_fp
+        file_descriptor = None
+        if writer is not None:
+            try:
+                file_descriptor = writer.fileno()
+            except Exception:
+                pass
+            try:
+                writer.close()
+            except Exception:
+                if file_descriptor is not None:
+                    try:
+                        os.close(file_descriptor)
+                    except Exception:
+                        pass
+
+        self.new_fp = None
+        self.msg_count_new = count_start
+        self.append_rollback_boundary = (append_start, count_start)
+        self._restore_append_boundary()
+
+    def _restore_append_boundary(self) -> bool:
+        """Retry restoring `.new` to the last known complete append boundary."""
+        if self.append_rollback_boundary is None:
+            return not self.append_rollback_failed
+
+        append_start, count_start = self.append_rollback_boundary
+        self.msg_count_new = count_start
+        try:
+            with open(self.new_path, 'r+b') as rollback_fp:
+                rollback_fp.truncate(append_start)
+        except Exception as err:
+            self.append_rollback_failed = True
+            logger.error("could not roll back retry append for %s: %s",
+                         self.new_path, err)
+            return False
+
+        self.append_rollback_failed = False
+        self.append_rollback_boundary = None
+        return True
 
     def cleanup(self):
         """
@@ -152,6 +228,11 @@ class DiskQueue():
         if os.path.exists(self.queue_file):
             os.unlink(self.queue_file)
         self.msg_count = 0
+        self.inflight_count = 0
+        self.cleanup_pending = False
+        self.append_rollback_failed = False
+        self.append_rollback_boundary = None
+        self.reader_rollback_failed = False
 
     def close(self):
         """
@@ -176,6 +257,8 @@ class DiskQueue():
         self.queue_fp = None
         self.msg_count = 0
         self.msg_count_new = 0
+        self.inflight_count = 0
+        self.cleanup_pending = False
 
     def _count_msgs(self, file_path) -> int:
         """Count the number of messages (lines) in the queue file. This should be used only when opening an existing
@@ -239,48 +322,117 @@ class DiskQueue():
         if self.msg_count == 0 and self.queue_fp is None:
             return []
 
+        if self.reader_rollback_failed:
+            raise OSError("retry queue reader is blocked after rollback failure")
+
+        if self.queue_fp is None:
+            if not os.path.isfile(self.queue_file):
+                return []
+            logger.debug('DEBUG %s open read', self.queue_file)
+            self.queue_fp = open(self.queue_file, 'r')
+
+        read_start = self.queue_fp.tell()
+        count_start = self.msg_count
+        inflight_start = self.inflight_count
+
         ml = []
         count = 0
-        while count < maximum_messages_to_get:
-            self.queue_fp, message = self.msg_get_from_file(
-                self.queue_fp, self.queue_file)
+        try:
+            while count < maximum_messages_to_get:
+                self.queue_fp, message = self.msg_get_from_file(
+                    self.queue_fp, self.queue_file)
 
-            # FIXME MG as discussed with Peter
-            # no housekeeping in get ...
-            # if no message (and new or state file there)
-            # we wait for housekeeping to present retry messages
-            if not message:
-                try:
-                    os.unlink(self.queue_file)
-                except Exception:
-                    pass
-                self.queue_fp = None
-                self.msg_count = 0
-                #logger.debug("MG DEBUG retry get return None")
-                break
+                # FIXME MG as discussed with Peter
+                # no housekeeping in get ...
+                # if no message (and new or state file there)
+                # we wait for housekeeping to present retry messages
+                if not message:
+                    self.msg_count = 0
+                    if self.inflight_count == 0:
+                        self.cleanup_pending = not self._remove_queue_file()
+                    #logger.debug("MG DEBUG retry get return None")
+                    break
 
-            if self.is_expired(message):
+                if self.is_expired(message):
+                    self.msg_count -= 1
+                    #logger.error("MG invalid %s" % message)
+                    continue
+
+                if 'ack_id' in message:
+                    del message['ack_id']
+                    message['_deleteOnPost'].remove('ack_id')
+
+                ml.append(message)
+                count += 1
                 self.msg_count -= 1
-                #logger.error("MG invalid %s" % message)
-                continue
+                self.inflight_count += 1
+        except BaseException:
+            self.msg_count = count_start
+            self.inflight_count = inflight_start
+            self._restore_reader(read_start)
+            raise
 
-            if 'ack_id' in message:
-                del message['ack_id']
-                message['_deleteOnPost'].remove('ack_id')
-
-            ml.append(message)
-            count += 1
-            self.msg_count -= 1
-
-        # after getting the last message from the file, close it
-        if self.msg_count == 0:
-            try:
-                os.unlink(self.queue_file)
-            except Exception:
-                pass
-            self.queue_fp = None
+        # A final batch remains in the queue file until the caller confirms
+        # that processing completed or that failures were safely requeued.
+        if self.msg_count == 0 and self.inflight_count == 0:
+            self.cleanup_pending = not self._remove_queue_file()
 
         return ml
+
+    def _restore_reader(self, read_start) -> None:
+        """Restore the reader to the start of a failed `get()` call."""
+        try:
+            if self.queue_fp is not None:
+                self.queue_fp.seek(read_start)
+                return
+        except Exception:
+            try:
+                self.queue_fp.close()
+            except Exception:
+                pass
+
+        try:
+            self.queue_fp = open(self.queue_file, 'r')
+            self.queue_fp.seek(read_start)
+        except Exception as err:
+            self.queue_fp = None
+            self.reader_rollback_failed = True
+            logger.error("could not restore retry reader for %s: %s",
+                         self.queue_file, err)
+
+    def _remove_queue_file(self) -> bool:
+        """Close and remove the current queue file when it is safe to retire."""
+        try:
+            if self.queue_fp is not None:
+                self.queue_fp.close()
+        except Exception as err:
+            logger.debug("queue_fp close: %s", err)
+        self.queue_fp = None
+
+        try:
+            os.unlink(self.queue_file)
+        except FileNotFoundError:
+            return True
+        except Exception as err:
+            logger.warning("could not remove completed retry queue %s: %s",
+                           self.queue_file, err)
+            return False
+        return True
+
+    def complete(self, message_count) -> bool:
+        """Record completed messages and retire an empty queue file.
+
+        The caller invokes this only after each returned message has either
+        completed or been written back to a retry queue.
+        """
+        if message_count < 0 or message_count > self.inflight_count:
+            raise ValueError("cannot complete %s messages with %s in flight" %
+                             (message_count, self.inflight_count))
+
+        self.inflight_count -= message_count
+        if self.inflight_count == 0 and self.msg_count == 0:
+            self.cleanup_pending = not self._remove_queue_file()
+        return True
 
     def in_cache(self, message) -> bool:
         """
@@ -382,9 +534,20 @@ class DiskQueue():
         """
         logger.debug('%s on_housekeeping, %s msgs in queue file, %s in new file', self.name, self.msg_count, self.msg_count_new)
 
+        if self.cleanup_pending:
+            if not self._remove_queue_file():
+                return
+            self.cleanup_pending = False
+
+        if self.append_rollback_failed:
+            logger.error("retry housekeeping is blocked after append rollback failure for %s",
+                         self.new_path)
+            return
+
         # finish retry before reshuffling all retries entries
 
-        if (os.path.isfile(self.queue_file) and self.queue_fp != None) or self.msg_count != 0:
+        if (os.path.isfile(self.queue_file) and self.queue_fp != None) \
+                or self.msg_count != 0 or self.inflight_count != 0:
             logger.info(f"still {self.msg_count} messages in {self.name} list. Resuming retries with {self.queue_file}")
             return
 

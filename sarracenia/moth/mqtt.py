@@ -126,6 +126,7 @@ class MQTT(Moth):
         super().__init__(options, is_subscriber)
 
         self.connected=False
+        self.publish_lock = threading.Lock()
         # setting this is wrong and breaks things, was already set in super-class init, doing this here overwites
         #  interpretation of options done in superclass.
         #self.o = options
@@ -295,13 +296,13 @@ class MQTT(Moth):
 
     def __pub_on_publish(client, userdata, mid, reason_codes, properties=None):
 
-        if mid in userdata.pending_publishes:
-            logger.info( f"publish complete. mid={mid}" )
-            # FIXME: worried... not clear if dequeue remove is thread safe.
-            userdata.pending_publishes.remove(mid)
-        else:
-            userdata.unexpected_publishes.append(mid)
-            logger.warning( f"BUG: ack for message we do not know we published. mid={mid}" )
+        with userdata.publish_lock:
+            if mid in userdata.pending_publishes:
+                logger.info( f"publish complete. mid={mid}" )
+                userdata.pending_publishes.remove(mid)
+            else:
+                userdata.unexpected_publishes.append(mid)
+                logger.warning( f"BUG: ack for message we do not know we published. mid={mid}" )
 
     def __sslClientSetup(self,client=None) -> int:
         """
@@ -814,12 +815,13 @@ class MQTT(Moth):
             info = self.client.publish(topic=topic, payload=raw_body, qos=self.o['qos'], properties=props)
                
             if info.rc == paho.mqtt.client.MQTT_ERR_SUCCESS:
-                if info.mid in self.unexpected_publishes:
-                    self.unexpected_publishes.remove(info.mid)
-                    ack_pending=False
-                else:
-                    self.pending_publishes.append(info.mid)
-                    ack_pending=True
+                with self.publish_lock:
+                    if info.mid in self.unexpected_publishes:
+                        self.unexpected_publishes.remove(info.mid)
+                        ack_pending=False
+                    else:
+                        self.pending_publishes.append(info.mid)
+                        ack_pending=True
 
                 self.metrics['txByteCount'] += len(raw_body)
                 self.metrics['txGoodCount'] += 1

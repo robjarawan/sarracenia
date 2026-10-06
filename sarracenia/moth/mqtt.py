@@ -843,16 +843,40 @@ class MQTT(Moth):
 
             if hasattr(self, 'pending_publishes'):
                 ebo=0.1
-                while  len(self.pending_publishes) >0:
-                    logger.info( f'waiting {ebo} seconds for last {len(self.pending_publishes)} messages to publish')
+                max_wait = self.o.get('timeout')
+                if max_wait is None:
+                    max_wait = 300
+                max_wait = max(0, float(max_wait))
+                deadline = time.monotonic() + max_wait
+                while len(self.pending_publishes) > 0:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        break
+                    wait_for = min(ebo, remaining)
+                    logger.info(
+                        'waiting %s seconds for last %d messages to publish',
+                        wait_for,
+                        len(self.pending_publishes),
+                    )
                     if len(self.unexpected_publishes) < 10:
                         logger.info( f'messages acknowledged before publish?: {self.unexpected_publishes}')
                     if len(self.pending_publishes) < 10:
                         logger.info( f'messages awaiting publish: {self.pending_publishes}')
-                    time.sleep(ebo)
-                    if ebo < 64:
-                        ebo *= 2
-                logger.info('no more pending messages')
+                    time.sleep(wait_for)
+                    ebo = min(ebo * 2, 64)
+                unresolved = list(self.pending_publishes)
+                if unresolved:
+                    logger.error(
+                        'gave up waiting after %.3g seconds; unresolved MIDs: %s',
+                        max_wait,
+                        unresolved,
+                    )
+                    if hasattr(self, 'metrics'):
+                        self.metrics['txBadCount'] = (
+                            self.metrics.get('txBadCount', 0) + len(unresolved)
+                        )
+                else:
+                    logger.info('no more pending messages')
             self.client.disconnect()
             self.client.loop_stop()
         self.connected=False

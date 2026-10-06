@@ -46,6 +46,9 @@ class Retry(FlowCB):
       attempted for that file.
 
     """
+
+    run_last = ('after_work',)
+
     def __init__(self, options) -> None:
 
         logger.debug("sr_retry __init__")
@@ -139,6 +142,7 @@ class Retry(FlowCB):
 
         if len(worklist.failed) != 0:
             for m in worklist.failed:
+                self.__restore_source_fields(m)
                 self.__set_isRetry(m)
             to_retry = self.__filter_by_retry_count(worklist.failed)
             logger.debug('putting %s messages into %s', len(to_retry), self.download_retry_name)
@@ -231,6 +235,23 @@ class Retry(FlowCB):
         if '_deleteOnPost' not in msg:
             msg['_deleteOnPost'] = set()
         msg['_deleteOnPost'].add('_isRetry')
+
+    def __restore_source_fields(self, msg):
+        """Restore source-side fields before a failed work item is retried."""
+        if '_deleteOnPost' not in msg:
+            msg['_deleteOnPost'] = set()
+
+        for field in ['baseUrl', 'relPath', 'retrievePath']:
+            old_field = f'old_{field}'
+            if old_field in msg:
+                msg[field] = msg.pop(old_field)
+                msg['_deleteOnPost'].discard(old_field)
+
+        if 'old_subtopic' in msg:
+            msg['subtopic'] = msg.pop('old_subtopic')
+        elif 'old_subtopic' in msg['_deleteOnPost']:
+            msg.pop('subtopic', None)
+        msg['_deleteOnPost'].discard('old_subtopic')
 
     def __filter_by_retry_count(self, message_list):
         if self.o.retryCountMax <= 0:

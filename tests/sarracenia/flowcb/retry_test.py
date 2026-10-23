@@ -352,3 +352,49 @@ def test_on_housekeeping(tmp_path, caplog):
                 log_found_hk_elapse_redis = True
 
         assert log_found_hk_elapse_disk == log_found_hk_elapse_redis == True
+
+@pytest.mark.depends(on=['sarracenia/diskqueue_test.py', 'sarracenia/redisqueue_test.py'])
+def test_after_work__restores_download_fields(tmp_path):
+    # A message failed by an after_work callback was already adjusted for posting
+    # by Flow.work_message_adjust(), with the download values kept in old_*.
+    # The download retry has to go back to the source.
+    with patch(target="redis.from_url", new=fakeredis.FakeStrictRedis.from_url, ):
+        for driver in ['disk', 'redis']:
+            options = Options()
+            options.retry_driver = driver
+            options.pid_filename = str(tmp_path) + os.sep + driver + "_pidfilename.txt"
+            options.queueName = "test_after_work__restores_download_fields_" + driver
+            retry = Retry(options)
+            retry.on_start()
+
+            adjusted = make_message()
+            adjusted['old_baseUrl'] = adjusted['baseUrl']
+            adjusted['old_relPath'] = adjusted['relPath']
+            adjusted['old_subtopic'] = ['ThisIsAPath', 'To', 'A']
+            adjusted['old_retrievePath'] = 'source/File.txt'
+            adjusted['baseUrl'] = 'https://posting.host/'
+            adjusted['relPath'] = 'copies/File.txt'
+            adjusted['subtopic'] = ['copies']
+            adjusted['retrievePath'] = 'copies/File.txt'
+            adjusted['_deleteOnPost'] |= set(['old_baseUrl', 'old_relPath', 'old_subtopic', 'old_retrievePath'])
+
+            transfer_failure = make_message()
+            transfer_failure['relPath'] = 'ThisIsAPath/To/A/Other.txt'
+
+            worklist = copy.deepcopy(WorkList)
+            worklist.failed = [adjusted, transfer_failure]
+            retry.after_work(worklist)
+            retry.on_housekeeping()
+
+            retried = {m['relPath'].split('/')[-1]: m for m in retry.download_retry.get(2)}
+            assert sorted(retried) == ['File.txt', 'Other.txt']
+
+            assert retried['File.txt']['baseUrl'] == 'https://NotARealURL'
+            assert retried['File.txt']['relPath'] == 'ThisIsAPath/To/A/File.txt'
+            assert retried['File.txt']['subtopic'] == ['ThisIsAPath', 'To', 'A']
+            assert retried['File.txt']['retrievePath'] == 'source/File.txt'
+            for field in ['old_baseUrl', 'old_relPath', 'old_subtopic', 'old_retrievePath']:
+                assert field not in retried['File.txt']
+
+            assert retried['Other.txt']['baseUrl'] == 'https://NotARealURL'
+            assert retried['Other.txt']['relPath'] == 'ThisIsAPath/To/A/Other.txt'

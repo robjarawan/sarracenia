@@ -139,6 +139,7 @@ class Retry(FlowCB):
 
         if len(worklist.failed) != 0:
             for m in worklist.failed:
+                self.__restore_download_fields(m)
                 self.__set_isRetry(m)
             to_retry = self.__filter_by_retry_count(worklist.failed)
             logger.debug('putting %s messages into %s', len(to_retry), self.download_retry_name)
@@ -221,6 +222,19 @@ class Retry(FlowCB):
     def on_stop(self) -> None:
         self.download_retry.close()
         self.post_retry.close()
+
+    def __restore_download_fields(self, msg):
+        """
+        Flow.work() adjusts worklist.ok for posting before the after_work callbacks run,
+        keeping the download values in old_*. A message that one of those callbacks moves
+        to worklist.failed has to go back to its source to be downloaded again.
+        Transfer failures never get old_*, so they are left as they are.
+        """
+        for field in ['baseUrl', 'relPath', 'subtopic', 'retrievePath']:
+            old_field = 'old_' + field
+            if old_field in msg:
+                msg[field] = msg[old_field]
+                del msg[old_field]
 
     def __set_isRetry(self, msg):
         if '_isRetry' not in msg or ('_isRetry' in msg and type(msg['_isRetry']) != int):

@@ -37,7 +37,8 @@ class V02(PostFormat):
             return True
 
         # in the v02, we used topic to identify message format. (not reliable for other formats.)
-        if 'topic' in headers and headers['topic'].startswith('v02.'):
+        # headers is None when the publisher sets no AMQP headers.
+        if headers and 'topic' in headers and headers['topic'].startswith('v02.'):
             return True
         
         return False

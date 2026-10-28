@@ -1,5 +1,3 @@
-import pytest
-
 from sarracenia.postformat import PostFormat
 from sarracenia.postformat.v02 import V02
 from sarracenia.postformat.wis import Wis

@@ -129,6 +129,7 @@ class AMQP(Moth):
             else:
                 content_type = None
 
+            # raw_msg.headers is None when the publisher sets no AMQP headers.
             msg = PostFormat.importAny( body, raw_msg.headers or {}, content_type, self.o )
             if not msg:
                 logger.error('Decode failed, discarding message')

@@ -2205,6 +2205,41 @@ class sr_GlobalState:
 
  
 
+    def _kill_strays(self) -> bool:
+        """Stop strays without letting their cleanup touch another instance's files."""
+        pending = []
+        for pid in self.strays:
+            try:
+                process = psutil.Process(pid)
+                if process.create_time() == self.procs[pid]['create_time']:
+                    process.kill()
+                    pending.append(process)
+            except psutil.NoSuchProcess:
+                continue
+            except psutil.Error as ex:
+                logger.error('Cannot kill stray pid %s: %s; skipping replacements', pid, ex)
+                return False
+
+        deadline = time.monotonic() + 5
+        while pending:
+            for process in pending[:]:
+                try:
+                    if process.is_running() and process.status() not in (psutil.STATUS_ZOMBIE, psutil.STATUS_DEAD):
+                        continue
+                except psutil.NoSuchProcess:
+                    pass
+                except psutil.Error as ex:
+                    logger.error('Cannot confirm stray pid %s exited: %s; skipping replacements', process.pid, ex)
+                    return False
+                pending.remove(process)
+            if not pending:
+                break
+            if time.monotonic() >= deadline:
+                logger.error('Strays still running: %s; skipping replacements', [p.pid for p in pending])
+                return False
+            time.sleep(0.1)
+        return True
+
     def sanity(self):
         """ Run sanity by finding and starting missing instances
 
@@ -2261,9 +2296,6 @@ class sr_GlobalState:
                     filtered_missing.append(m)
 
             print(f'missing: {filtered_missing}')
-            print('starting them up...')
-            if not self.options.dry_run:
-                self._start_missing()
         else:
             logger.info('no missing processes found')
 
@@ -2271,11 +2303,18 @@ class sr_GlobalState:
         if len(self.strays) > 0:
             print('killing strays...')
             for pid in self.strays:
-                print( f"pid: {pid} \"{self.strays[pid]}\"  does not match any configured instance, sending it TERM" )
-                if not self.options.dry_run:
-                    signal_pid(pid, signal.SIGTERM)
+                print( f"pid: {pid} \"{self.strays[pid]}\"  does not match any configured instance, sending it KILL" )
+            if not self.options.dry_run and not self._kill_strays():
+                self._tag_sanity(ending=True)
+                return
         else:
             logger.info('no stray processes found')
+
+        # Keep the missing-instance decisions made before terminating strays.
+        if pcount != 0:
+            print('starting them up...')
+            if not self.options.dry_run:
+                self._start_missing()
 
         #It is enough to have it *features* not needed in sanity.
         #for l in sarracenia.features.keys():

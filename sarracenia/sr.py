@@ -256,10 +256,15 @@ class sr_GlobalState:
  
         if p['name'].startswith('sr3_'):
             #print( f"starts with sr3_ cmdline={p['cmdline']}" )
-            p['memory'] = p['memory_full_info']._asdict()
-            p['cpu'] = p['cpu_times']._asdict()
-            del p['memory_full_info'] 
-            del p['cpu_times']
+            # Detailed accounting may be denied even when process identity is readable.
+            memory = p.pop('memory_full_info', None) or p.pop('memory_info', None)
+            p['memory'] = {'uss': 0, 'rss': 0, 'vms': 0}
+            if memory is not None:
+                p['memory'].update(memory._asdict())
+            cpu = p.pop('cpu_times', None)
+            p['cpu'] = {'user': 0.0, 'system': 0.0}
+            if cpu is not None:
+                p['cpu'].update(cpu._asdict())
             self.procs[p['pid']] = p
             self.procs[p['pid']]['claimed'] =   (p['name'][-4:] == 'post') or \
                     any( item in [ 'declare', 'edit', 'foreground', 'sanity', 'setup', 'status' ] for item in  p['cmdline'] )
@@ -292,7 +297,7 @@ class sr_GlobalState:
             try:
                 self._filter_sr_proc(
                     proc.as_dict(
-                        ['pid', 'cmdline', 'name', 'username', 'create_time', 'memory_full_info', 'cpu_times']))
+                        ['pid', 'cmdline', 'name', 'username', 'create_time', 'memory_full_info', 'memory_info', 'cpu_times']))
             except:
                 pass # the process went away while iterating. avoid spurious message.
 

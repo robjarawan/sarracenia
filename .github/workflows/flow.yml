@@ -33,6 +33,9 @@ jobs:
       matrix:
        which_test: [ static_flow, no_mirror, flakey_broker, dynamic_flow, restart_server, partitioned_flow ]
        osver: [ "ubuntu-22.04", "ubuntu-24.04" ]
+       # Fork proof runs use local fixtures; dynamic_flow consumes live datamarts.
+       exclude:
+         - which_test: ${{ github.repository == 'robjarawan/sarracenia' && 'dynamic_flow' || '__none__' }}
 
     runs-on: ${{ matrix.osver }}
   

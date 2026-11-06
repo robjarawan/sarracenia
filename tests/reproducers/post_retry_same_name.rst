@@ -46,6 +46,7 @@ Its relevant settings are::
     filename None
     inflight .tmp
     post_baseDir ${POST_RETRY_CASE}/output
+    baseDir ${POST_RETRY_CASE}/output
     directory ${POST_RETRY_CASE}/output
     flowCallback post_retry_same_name.Probe
     flowCallback sarracenia.flowcb.post.message.Message

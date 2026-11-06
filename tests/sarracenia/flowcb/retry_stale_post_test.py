@@ -95,6 +95,7 @@ def test_unreadable_local_post_retry_stays_pending(tmp_path, driver):
     ({}, {'fileOp': {'remove': ''}}),
     ({}, {'blocks': {'method': 'inplace', 'number': 0, 'size': 10}}),
     ({}, {'identity': {'method': 'random', 'value': '1234'}}),
+    ({}, {'content': {'encoding': 'utf-8', 'value': 'body'}}),
 ])
 def test_nonlocal_or_noncontent_retry_keeps_existing_behavior(tmp_path, override, extra):
     message = make_message(tmp_path / 'absent.txt', b'body')

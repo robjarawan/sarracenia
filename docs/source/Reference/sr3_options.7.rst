@@ -1957,7 +1957,7 @@ no longer matches, the old announcement is rejected with a report instead of
 advertising the old checksum for the replacement file. If the file cannot be
 read, the announcement stays queued under the normal retry limits. This check
 does not apply to message-only forwarding, remote sender targets, file
-operations, blocks or non-content identities.
+operations, blocks, self-contained inline content or non-content identities.
 
 
 retry_refilter <boolean> (default: False)

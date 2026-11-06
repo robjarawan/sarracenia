@@ -92,6 +92,7 @@ def test_unreadable_local_post_retry_stays_pending(tmp_path, driver):
 @pytest.mark.parametrize('override,extra', [
     ({'download': False}, {}),
     ({'component': 'sender'}, {}),
+    ({'component': 'flow', 'flowMain': 'sender'}, {}),
     ({}, {'fileOp': {'remove': ''}}),
     ({}, {'blocks': {'method': 'inplace', 'number': 0, 'size': 10}}),
     ({}, {'identity': {'method': 'random', 'value': '1234'}}),

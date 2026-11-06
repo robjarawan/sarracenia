@@ -192,7 +192,7 @@ class Retry(FlowCB):
         """
         method = message.get('identity', {}).get('method')
         if (not getattr(self.o, 'download', False)
-                or self.o.component == 'sender'
+                or (getattr(self.o, 'flowMain', None) or self.o.component) == 'sender'
                 or not message.get('new_path')
                 or 'fileOp' in message or 'blocks' in message or 'content' in message
                 or method not in ('md5', 'sha512')):

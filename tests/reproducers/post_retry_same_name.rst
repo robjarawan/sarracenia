@@ -66,7 +66,8 @@ before running the phases if the actual wire messages are to be inspected::
     cp tests/reproducers/post_retry_same_name.conf "$XDG_CONFIG_HOME/sr3/flow/update.conf"
     POST_RETRY_PHASE=prepare sr3 foreground flow/probe
     POST_RETRY_PHASE=replace sr3 foreground flow/update
-    POST_RETRY_PHASE=reopen sr3 --retryEmptyBeforeExit True foreground flow/probe
+    printf '%s\n' 'retryEmptyBeforeExit True' >> "$XDG_CONFIG_HOME/sr3/flow/probe.conf"
+    POST_RETRY_PHASE=reopen sr3 foreground flow/probe
 
 The prepare phase logs the injected failure and a nonempty post retry queue.
 The replace phase publishes B. On the base the final phase publishes A's old

@@ -71,6 +71,27 @@ def test_local_post_retry_after_restart(tmp_path, driver, method, changed):
         retry.on_stop()
 
 
+def test_resized_local_post_retry_is_rejected_without_hashing(tmp_path):
+    path = tmp_path / 'latest.txt'
+    path.write_bytes(b'first version\n')
+    message = make_message(path, b'first version\n')
+    retry = make_retry(tmp_path, 'disk')
+    try:
+        first = worklist()
+        first.failed = [message]
+        retry.after_post(first)
+        retry.on_housekeeping()
+        path.write_bytes(b'a longer replacement body\n')
+        second = worklist()
+        with patch('sarracenia.flowcb.retry.Identity.factory') as factory:
+            retry.after_work(second)
+        factory.assert_not_called()
+        assert not second.ok
+        assert [m['report']['code'] for m in second.rejected] == [410]
+    finally:
+        retry.on_stop()
+
+
 @pytest.mark.parametrize('driver', ['disk', 'redis'])
 def test_unreadable_local_post_retry_stays_pending(tmp_path, driver):
     path = tmp_path / 'latest.txt'

@@ -1945,12 +1945,6 @@ The default value is 0, which means there is no limit on the number of retries
 This option works alongside **retry_ttl**; the message will be discarded
 whichever limit is reached first.
 
-
-retryEmptyBeforeExit: <boolean> (default: False)
-------------------------------------------------
-
-Used for sr_insects flow tests. Prevents Sarracenia from exiting while there are messages remaining in the retry queue(s). By default, a post will cleanly exit once it has created and attempted to publish messages for all files in the specified directory. If any messages are not successfully published, they will be saved to disk to retry later. If a post is only run once, as in the flow tests, these messages will never be retried unless retryEmptyBeforeExit is set to True.
-
 Before retrying an announcement for a locally downloaded whole file with an
 MD5 or SHA512 identity, Sarracenia checks its current content. If the content
 no longer matches, the old announcement is rejected with a report instead of
@@ -1958,6 +1952,12 @@ advertising the old checksum for the replacement file. If the file cannot be
 read, the announcement stays queued under the normal retry limits. This check
 does not apply to message-only forwarding, remote sender targets, file
 operations, blocks, self-contained inline content or non-content identities.
+
+
+retryEmptyBeforeExit: <boolean> (default: False)
+------------------------------------------------
+
+Used for sr_insects flow tests. Prevents Sarracenia from exiting while there are messages remaining in the retry queue(s). By default, a post will cleanly exit once it has created and attempted to publish messages for all files in the specified directory. If any messages are not successfully published, they will be saved to disk to retry later. If a post is only run once, as in the flow tests, these messages will never be retried unless retryEmptyBeforeExit is set to True.
 
 
 retry_refilter <boolean> (default: False)

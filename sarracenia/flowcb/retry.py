@@ -198,6 +198,10 @@ class Retry(FlowCB):
                 or method not in ('md5', 'sha512')):
             return True
 
+        # A different size is already a replacement; skip hashing the body.
+        if 'size' in message and os.stat(message['new_path']).st_size != int(message['size']):
+            return False
+
         # Read the body, not a cached xattr: replacement may preserve mtime.
         identity = Identity.factory(method)
         identity.update_file(message['new_path'])

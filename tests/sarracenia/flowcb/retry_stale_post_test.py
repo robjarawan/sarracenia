@@ -86,6 +86,21 @@ def test_unreadable_local_post_retry_stays_pending(tmp_path, driver):
         assert not second.ok
         assert not second.rejected
         assert len(retry.post_retry) == 1
+
+        # The requeued notice waits for housekeeping, like any other retry,
+        # so an unreadable file is not re-read on every pass.
+        path.write_bytes(b'first version\n')
+        third = worklist()
+        retry.after_work(third)
+        assert not third.ok
+        assert not third.rejected
+
+        retry.on_housekeeping()
+        fourth = worklist()
+        retry.after_work(fourth)
+        assert [m['identity'] for m in fourth.ok] == [message['identity']]
+        assert fourth.ok[0]['_isRetry'] == 2
+        assert len(retry.post_retry) == 0
         retry.on_stop()
 
 

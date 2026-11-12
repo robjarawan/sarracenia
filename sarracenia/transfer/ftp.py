@@ -465,13 +465,24 @@ class Ftp(Transfer):
                                 self.write_chunk)
             else:
                 self.ftp.storlines("STOR " + remote_file, src, self.write_chunk)
-        except Exception as Ex:
-            logger.error( f"failed to put {remote_file} to {local_file}: {Ex}" )
-
-        rw_length = self.write_chunk_end()
-
-        # close
-        self.local_read_close(src)
+        except (ftplib.error_perm, ftplib.error_temp):
+            # the server refused the file. The reply was read, so the
+            # connection is still usable. The caller logs and retries.
+            raise
+        except Exception:
+            # timeout or socket error: the reply to this STOR may still
+            # arrive, and the next command would read it as its own answer.
+            # Drop the connection so the next attempt starts on a new one.
+            try:
+                self.ftp.close()
+            except Exception:
+                pass
+            self.connected = False
+            raise
+        finally:
+            # always clear the timer and close the local file, see #966.
+            rw_length = self.write_chunk_end()
+            self.local_read_close(src)
 
         return rw_length
 

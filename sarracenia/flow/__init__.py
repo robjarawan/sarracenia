@@ -1,4 +1,5 @@
 import copy
+import ftplib
 import glob
 import importlib
 import logging
@@ -203,6 +204,9 @@ class Flow:
         self.scheme = None
         self.cdir = None
         self.proto = {}
+
+        # inflight umask: files the server refused to overwrite, to remove before the next attempt.
+        self.umask_leftover = set()
 
         # initialize plugins.
         if hasattr(self.o, 'v2plugins') and len(self.o.v2plugins) > 0:
@@ -2889,6 +2893,25 @@ class Flow:
                     len_written = msg['size']
             elif inflight == 'umask':
                 if not self.o.dry_run:
+                    leftover = (sendTo, new_dir, new_file)
+                    if leftover in self.umask_leftover:
+                        # the server refused this upload on the last attempt.
+                        # In umask mode the likely cause is an earlier upload
+                        # that failed part way: it leaves a file with no
+                        # permissions, which can't be overwritten. Remove it so
+                        # this attempt can create it.
+                        #
+                        # The refusal can have other causes. A full quota or
+                        # an unwritable directory costs one refused delete on
+                        # each retry. A file of that name owned by someone else,
+                        # or one another sender is still uploading, is removed
+                        # as well, and replaced by this upload.
+                        logger.info( f"removing {sendTo} {msg['new_dir']}/{new_file} after the server refused to overwrite it" )
+                        try:
+                            self.proto[self.scheme].delete(new_file)
+                            self.umask_leftover.discard(leftover)
+                        except Exception as ex:
+                            logger.warning( f"could not remove failed upload {sendTo} {msg['new_dir']}/{new_file}: {ex}" )
                     self.proto[self.scheme].umask()
                     try:
                         if accelerated:
@@ -2899,6 +2922,9 @@ class Flow:
                                 msg, local_file, new_file)
                     except Exception as ex:
                         logger.error( f"could not send {local_dir}{os.sep}{local_file} inflight={inflight} {sendTo} {msg['new_dir']}/{new_file}: {ex}" )
+                        if isinstance(ex, ftplib.error_perm):
+                            # 5xx: most likely the file is there and can't be written to.
+                            self.umask_leftover.add(leftover)
                         return 0
                 else:
                     len_written = msg['size']

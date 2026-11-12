@@ -119,3 +119,51 @@ def test_relpath_ending_in_slash_without_fileop_is_rejected(tmp_path):
     assert flow.worklist.ok == []
     assert msg['report']['code'] == 422
     assert not (root / "sub" / "name").exists()
+
+
+@pytest.mark.parametrize("accel", [False, True], ids=["put", "putAccelerated"])
+def test_send_inflight_umask_puts_file_once(tmp_path, monkeypatch, accel):
+    # issue #1821: the umask branch of send() called put() a second time,
+    # so every file was sent with two STORs.
+    from unittest.mock import MagicMock
+
+    src = tmp_path / "data.bin"
+    src.write_bytes(b"x" * 1700)
+    # send() changes into the source directory and stays there.
+    monkeypatch.chdir(tmp_path)
+
+    options = __make_fake_config(lines=[
+        "sendTo ftp://user@localhost/", "inflight umask", "mirror False",
+        "directory /dest", "accept .*", "permCopy on", "dry_run off",
+        f"baseDir {tmp_path}",
+        "accelThreshold 1k" if accel else "accelThreshold 0"
+    ])
+    flow = sarracenia.flow.Flow(options)
+    flow.scheme = 'ftp'
+    proto = MagicMock()
+    proto.check_is_connected.return_value = True
+    proto.getcwd.return_value = '/dest'
+    proto.put.return_value = 1700
+    proto.putAccelerated.return_value = 1700
+    flow.proto = {'ftp': proto}
+
+    msg = sarracenia.Message()
+    msg['pubTime'] = '20261112T120000.123'
+    msg['baseUrl'] = 'file:'
+    msg['relPath'] = 'data.bin'
+    msg['size'] = 1700
+    msg['mode'] = '644'
+    msg['new_dir'] = '/dest'
+    msg['new_file'] = 'data.bin'
+    msg['local_offset'] = 0
+
+    assert flow.send(msg, flow.o) == 1
+
+    # one upload, by the method that fits the file size, and nothing to rename.
+    uploads = [c[0] for c in proto.method_calls if c[0] in ('put', 'putAccelerated')]
+    assert uploads == (['putAccelerated'] if accel else ['put'])
+    proto.rename.assert_not_called()
+
+    # the file is created unreadable, so the chmod has to follow the upload.
+    names = [c[0] for c in proto.method_calls if c[0] in ('umask', 'put', 'putAccelerated', 'chmod')]
+    assert names == ['umask', uploads[0], 'chmod']

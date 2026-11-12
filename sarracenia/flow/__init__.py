@@ -2900,11 +2900,6 @@ class Flow:
                     except Exception as ex:
                         logger.error( f"could not send {local_dir}{os.sep}{local_file} inflight={inflight} {sendTo} {msg['new_dir']}/{new_file}: {ex}" )
                         return 0
-                    try:
-                        self.proto[self.scheme].put(msg, local_file, new_file)
-                    except Exception as ex:
-                        logger.error( f"could not rename inflight={inflight} {sendTo} {msg['new_dir']}/{new_file}: {ex}" )
-                        return 0
                 else:
                     len_written = msg['size']
 

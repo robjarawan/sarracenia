@@ -1,3 +1,4 @@
+import ftplib
 import pytest
 from tests.conftest import *
 
@@ -167,3 +168,41 @@ def test_send_inflight_umask_puts_file_once(tmp_path, monkeypatch, accel):
     # the file is created unreadable, so the chmod has to follow the upload.
     names = [c[0] for c in proto.method_calls if c[0] in ('umask', 'put', 'putAccelerated', 'chmod')]
     assert names == ['umask', uploads[0], 'chmod']
+
+
+@pytest.mark.parametrize("inflight", ["inflight umask", "inflight .tmp", "inflight .", ""],
+                         ids=["umask", "suffix", "dot", "default"])
+def test_send_fails_when_put_raises(tmp_path, monkeypatch, inflight):
+    # issue #1822: a put() that raises has to end as a failed send, so the
+    # message is retried instead of being reported as sent.
+    from unittest.mock import MagicMock
+
+    src = tmp_path / "data.bin"
+    src.write_bytes(b"x" * 1700)
+    monkeypatch.chdir(tmp_path)
+
+    lines = ["sendTo ftp://user@localhost/", "mirror False", "directory /dest", "accept .*",
+             "dry_run off", "accelThreshold 0", f"baseDir {tmp_path}"]
+    if inflight:
+        lines.append(inflight)
+    flow = sarracenia.flow.Flow(__make_fake_config(lines=lines))
+    flow.scheme = 'ftp'
+    proto = MagicMock()
+    proto.check_is_connected.return_value = True
+    proto.getcwd.return_value = '/dest'
+    proto.put.side_effect = ftplib.error_perm("552 Exceeded storage allocation.")
+    flow.proto = {'ftp': proto}
+
+    msg = sarracenia.Message()
+    msg['pubTime'] = '20261112T120000.123'
+    msg['baseUrl'] = 'file:'
+    msg['relPath'] = 'data.bin'
+    msg['size'] = 1700
+    msg['new_dir'] = '/dest'
+    msg['new_file'] = 'data.bin'
+    msg['local_offset'] = 0
+
+    assert flow.send(msg, flow.o) == 0
+    assert proto.put.call_count == 1
+    proto.rename.assert_not_called()
+    proto.chmod.assert_not_called()

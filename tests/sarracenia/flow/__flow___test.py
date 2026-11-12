@@ -206,3 +206,126 @@ def test_send_fails_when_put_raises(tmp_path, monkeypatch, inflight):
     assert proto.put.call_count == 1
     proto.rename.assert_not_called()
     proto.chmod.assert_not_called()
+
+
+def __umask_sender(tmp_path, monkeypatch):
+    from unittest.mock import MagicMock
+
+    src = tmp_path / "data.bin"
+    src.write_bytes(b"x" * 1700)
+    monkeypatch.chdir(tmp_path)
+
+    options = __make_fake_config(lines=[
+        "sendTo ftp://user@localhost/", "inflight umask", "mirror False",
+        "directory /dest", "accept .*", "permCopy on", "accelThreshold 0",
+        "dry_run off", f"baseDir {tmp_path}"
+    ])
+    flow = sarracenia.flow.Flow(options)
+    flow.scheme = 'ftp'
+    proto = MagicMock()
+    proto.check_is_connected.return_value = True
+    proto.getcwd.return_value = '/dest'
+    proto.put.return_value = 1700
+    flow.proto = {'ftp': proto}
+
+    msg = sarracenia.Message()
+    msg['pubTime'] = '20261112T120000.123'
+    msg['baseUrl'] = 'file:'
+    msg['relPath'] = 'data.bin'
+    msg['size'] = 1700
+    msg['mode'] = '644'
+    msg['new_dir'] = '/dest'
+    msg['new_file'] = 'data.bin'
+    msg['local_offset'] = 0
+
+    def calls():
+        found = [c[0] for c in proto.method_calls if c[0] in ('delete', 'umask', 'put', 'chmod')]
+        proto.reset_mock()
+        return found
+
+    return flow, proto, msg, calls
+
+
+REFUSED = ftplib.error_perm("553 Could not create file.")
+
+
+def test_send_inflight_umask_removes_refused_file_before_retry(tmp_path, monkeypatch, caplog):
+    # an upload that fails part way in umask mode leaves a file with no
+    # permissions on the server, and the server refuses to overwrite it.
+    flow, proto, msg, calls = __umask_sender(tmp_path, monkeypatch)
+
+    # the upload times out: nothing is known about the remote file yet.
+    proto.put.side_effect = sarracenia.transfer.TimeoutException("signal alarm timed out")
+    assert flow.send(msg, flow.o) == 0
+    assert calls() == ['umask', 'put']
+
+    # the retry is refused: the file is there and can't be written to.
+    proto.put.side_effect = REFUSED
+    assert flow.send(msg, flow.o) == 0
+    assert calls() == ['umask', 'put']
+
+    # next attempt: remove it first and say so, then a normal upload.
+    proto.put.side_effect = None
+    with caplog.at_level("INFO"):
+        assert flow.send(msg, flow.o) == 1
+    proto.delete.assert_called_once_with('data.bin')
+    assert calls() == ['delete', 'umask', 'put', 'chmod']
+    assert "removing ftp://user@localhost/ /dest/data.bin after the server refused" in caplog.text
+
+    # a later send of the same name is a normal one again.
+    assert flow.send(msg, flow.o) == 1
+    assert calls() == ['umask', 'put', 'chmod']
+
+
+@pytest.mark.parametrize("error", [
+    ftplib.error_temp("425 Can't open data connection."),
+    sarracenia.transfer.TimeoutException("signal alarm timed out"),
+    OSError("local file unreadable"),
+], ids=["425", "timeout", "oserror"])
+def test_send_inflight_umask_keeps_remote_file_when_not_refused(tmp_path, monkeypatch, error):
+    # a failure that says nothing about the remote file must not delete it:
+    # an earlier good copy may still be waiting there.
+    flow, proto, msg, calls = __umask_sender(tmp_path, monkeypatch)
+
+    proto.put.side_effect = error
+    for attempt in range(3):
+        assert flow.send(msg, flow.o) == 0
+        assert calls() == ['umask', 'put']
+
+
+def test_send_inflight_umask_retries_removal_that_failed(tmp_path, monkeypatch, caplog):
+    flow, proto, msg, calls = __umask_sender(tmp_path, monkeypatch)
+
+    proto.put.side_effect = REFUSED
+    assert flow.send(msg, flow.o) == 0
+    calls()
+
+    # the removal itself fails, and so does the upload, for a reason that says
+    # nothing about the remote file: say so, and try the removal again next time.
+    proto.delete.side_effect = Exception("connection lost")
+    proto.put.side_effect = sarracenia.transfer.TimeoutException("signal alarm timed out")
+    with caplog.at_level("WARNING"):
+        assert flow.send(msg, flow.o) == 0
+    assert calls() == ['delete', 'umask', 'put']
+    assert "could not remove failed upload" in caplog.text
+
+    proto.delete.side_effect = None
+    proto.put.side_effect = None
+    assert flow.send(msg, flow.o) == 1
+    assert calls() == ['delete', 'umask', 'put', 'chmod']
+
+
+def test_send_inflight_umask_removal_is_per_directory(tmp_path, monkeypatch):
+    flow, proto, msg, calls = __umask_sender(tmp_path, monkeypatch)
+
+    proto.put.side_effect = REFUSED
+    assert flow.send(msg, flow.o) == 0
+    calls()
+
+    # the same file name going to another directory is not touched.
+    proto.put.side_effect = None
+    other = copy.deepcopy(msg)
+    other['new_dir'] = '/elsewhere'
+    proto.getcwd.return_value = '/elsewhere'
+    assert flow.send(other, flow.o) == 1
+    assert calls() == ['umask', 'put', 'chmod']
